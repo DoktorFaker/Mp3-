@@ -609,16 +609,7 @@ class World{
     const R=mulberry(1234+li*71);
     this.AX=2600+li*260;
     this.ground=[];this.plats=[];
-    let segStart=-400,x=520;
-    while(x<this.AX-420){
-      if(R()<0.3+li*0.02){
-        const gap=80+R()*60;
-        this.ground.push({x:segStart,w:x-segStart,y:GROUND_Y});
-        if(R()<0.55)this.plats.push({x:x+gap/2-55,w:110,y:GROUND_Y-112-R()*20});
-        segStart=x+gap;x=segStart+280+R()*220;
-      }else x+=200+R()*200;
-    }
-    this.ground.push({x:segStart,w:this.AX+BASE_W+400-segStart,y:GROUND_Y});
+    this.ground.push({x:-400,w:this.AX+BASE_W+800,y:GROUND_Y});
     for(let px=380;px<this.AX-260;px+=200+R()*240){
       const w=90+R()*100;
       if(R()<0.4){
