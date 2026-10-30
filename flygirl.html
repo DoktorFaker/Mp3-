@@ -622,7 +622,15 @@ class World{
     this.plats.push({x:A+90,w:150,y:GROUND_Y-118},{x:A+BASE_W-240,w:150,y:GROUND_Y-118},{x:A+BASE_W/2-70,w:140,y:GROUND_Y-222});
     this.plats.forEach(p=>p.plat=true);
     this.all=[...this.ground,...this.plats];
+    // a ladder up to every platform, down to the nearest floor below it
+    const RL=mulberry(99+li*13);this.ladders=[];
+    for(const p of this.plats){
+      const lx=RL()<0.5?p.x+8:p.x+p.w-30,cx=lx+11;let bottom=GROUND_Y;
+      for(const q of this.plats)if(q!==p&&q.y>p.y+20&&cx>=q.x&&cx<=q.x+q.w&&q.y<bottom)bottom=q.y;
+      this.ladders.push({x:lx,w:22,top:p.y,bottom});
+    }
   }
+  ladderAt(cx,top,bot){return this.ladders.find(l=>Math.abs(cx-(l.x+l.w/2))<14&&bot>=l.top-2&&top<=l.bottom);}
   surfaces(){return this.all;}
   surfacesAt(x){return this.all.filter(s=>x>=s.x+10&&x<=s.x+s.w-44);}
 }
@@ -696,7 +704,7 @@ class Player{
   resetPos(x){
     this.x=x;this.y=GROUND_Y-this.h-1;this.vx=0;this.vy=0;this.dir=1;this.onGround=true;this.surf=null;
     this.inv=0;this.hurtT=0;this.atkT=0;this.atk=null;this.pending=null;this.jumps=0;this.dropT=0;this.coyote=0;this.diving=false;
-    this.safeX=x;this.trailT=0;
+    this.safeX=x;this.trailT=0;this.climbing=false;this.climbPh=0;
   }
   get speed(){return this.outfit==='raveJacket'?255:205;}
   get jumpV(){return this.outfit==='raveJacket'?-700:-630;}
@@ -705,7 +713,7 @@ class Player{
   hurtBox(){return{x:this.x+4,y:this.y+6,w:this.w-8,h:this.h-6};}
   kick(g){
     if(this.atkT>0||this.hurtT>0)return;
-    if(!this.onGround&&this.vy>-120&&!this.diving){
+    if(!this.onGround&&!this.climbing&&this.vy>-120&&!this.diving){
       this.diving=true;this.vy=760;this.vx=this.dir*250;this.atk='dive';this.atkT=0.1;Sfx.dive();return;
     }
     if(this.diving)return;
@@ -741,12 +749,32 @@ class Player{
     if(this.atkT>0){this.atkT-=dt;if(this.atkT<=0&&this.atk!=='dive')this.atk=null;}
     const ctl=this.hurtT<=0;
     let ax=0;if(ctl){if(inp.left)ax-=1;if(inp.right)ax+=1;}
+    const lad=g.world.ladderAt(this.x+this.w/2,this.y,this.y+this.h),feet=this.y+this.h;
+    const canUp=!!lad&&feet>lad.top+4;
+    if(this.climbing){
+      if(!lad||!ctl)this.climbing=false;
+      else{
+        const cv=(inp.up?-1:0)+(inp.down?1:0);
+        this.vx=0;this.vy=cv*170;this.climbPh+=dt*Math.abs(cv)*10;
+        this.x+=(lad.x+lad.w/2-this.w/2-this.x)*Math.min(1,dt*20);this.y+=this.vy*dt;
+        if(inp.jumpP){this.climbing=false;this.vy=this.jumpV*0.8;this.vx=(ax||this.dir)*this.speed*0.6;if(ax)this.dir=ax;this.jumps=1;Sfx.jump();}
+        else if(this.y+this.h<=lad.top){this.y=lad.top-this.h;this.climbing=false;this.vy=0;}
+        else if(this.y+this.h>=lad.bottom&&cv>0){this.y=lad.bottom-this.h;this.climbing=false;this.vy=0;}
+        else if(ax&&!cv){this.climbing=false;this.dir=ax;}
+        if(this.climbing)return;
+      }
+    }else if(lad&&ctl&&!this.diving&&((inp.up&&canUp)||(inp.down&&this.onGround&&Math.abs(feet-lad.top)<3))){
+      this.climbing=true;this.climbPh=0;this.vx=0;this.vy=0;this.onGround=false;this.pending=null;this.atk=null;this.atkT=0;
+      if(inp.down)this.y+=4;
+      return;
+    }
+    const jumpP=inp.jumpP||(inp.upP&&!canUp);
     if(!this.diving&&ctl){
       const heavy=this.atk==='hammer'?0.3:1;
       if(ax){this.vx+=(ax*this.speed*heavy-this.vx)*Math.min(1,dt*14);if(!this.atk)this.dir=ax;}
       else this.vx*=Math.pow(this.onGround?0.0004:0.05,dt);
     }
-    if(ctl&&inp.jumpP){
+    if(ctl&&jumpP){
       if(inp.down&&this.onGround&&this.surf&&this.surf.plat){this.dropT=0.25;this.onGround=false;this.y+=2;}
       else if(this.onGround||this.coyote>0){this.vy=this.jumpV;this.onGround=false;this.coyote=0;this.jumps=1;Sfx.jump();g.dust(this.x+this.w/2,this.y+this.h,6);}
       else if(this.perk.doubleJump&&this.jumps<2){this.vy=this.jumpV*0.88;this.jumps=2;this.diving=false;this.atk=null;Sfx.jump();g.ring(this.x+this.w/2,this.y+this.h,this.color,0.6);}
@@ -798,6 +826,7 @@ class Player{
     else if(air){fa=hammerIdle?-d*1.6:-d*2.3;ba=d*0.8;}
     else if(run){fa=(hammerIdle?-d*1.1:0)-Math.sin(ph)*(hammerIdle?0.25:0.9);ba=Math.sin(ph)*0.9;}
     else{fa=(hammerIdle?-d*1.1:-d*0.35)+Math.sin(t*2)*0.05;ba=d*0.15;}
+    if(this.climbing&&!this.atk){const c=Math.sin(this.climbPh);fl=-d*(0.7+0.5*c);bl=-d*(0.7-0.5*c);fa=-d*(2.7+0.3*c);ba=-d*(2.7-0.3*c);}
 
     const arm=(ang,back,weapon)=>{
       ctx.save();ctx.translate(cx+(back?-d*6:d*5),cy+16);ctx.rotate(ang);
@@ -1458,7 +1487,7 @@ class Touch{
       ctx.restore();
     }
     ctx.font=`${Math.round(S*0.2)}px ${FONT}`;ctx.fillStyle='rgba(255,255,255,0.45)';
-    ctx.fillText('▲ = JUMP',D.x,D.y-S*1.75);ctx.fillText('▼+JUMP = DROP',D.x,D.y+S*1.75);
+    ctx.fillText('▲ = CLIMB / JUMP',D.x,D.y-S*1.75);ctx.fillText('▼+JUMP = DROP',D.x,D.y+S*1.75);
     for(const b of this.btns){
       const on=this.s[b.id];
       ctx.beginPath();ctx.arc(b.x,b.y,b.r,0,TAU);
@@ -1632,8 +1661,9 @@ class Game{
     if(x>A-60)return;
     const surfs=this.world.surfacesAt(x);
     if(!surfs.length)return;
-    const s=surfs[Math.floor(Math.random()*surfs.length)];
     const type=this.li>=1&&Math.random()<0.18+this.li*0.03?'thrower':'dude';
+    const ups=surfs.filter(q=>q.plat),pool=type==='thrower'&&ups.length?ups:surfs;
+    const s=pool[Math.floor(Math.random()*pool.length)];
     const e=new Enemy(type,x,s.y,this.li);e.dir=x>this.player.x?-1:1;this.enemies.push(e);
   }
   startBoss(){
@@ -1670,8 +1700,9 @@ class Game{
     const k=this.keys,tc=this.tc.s,P=this.pressed,T=this.tc.p;
     const inp={
       left:k.ArrowLeft||k.KeyA||tc.left,right:k.ArrowRight||k.KeyD||tc.right,down:k.ArrowDown||k.KeyS||tc.down,
+      up:k.ArrowUp||k.KeyW||tc.up,
       jump:k.Space||k.ArrowUp||k.KeyW||tc.jump||tc.up,
-      jumpP:P.Space||P.ArrowUp||P.KeyW||T.jump||T.up,
+      jumpP:P.Space||T.jump,upP:P.ArrowUp||P.KeyW||T.up,
       kickP:P.KeyJ||T.kick,atkP:P.KeyL||T.atk,swP:P.KeyK||P.KeyQ||T.wpn,
     };
     this.pressed={};this.tc.p={};
@@ -1857,6 +1888,13 @@ class Game{
       ctx.globalAlpha=0.35;ctx.fillStyle=eg;ctx.fillRect(s.x,s.y,s.w,22);ctx.globalAlpha=1;
       ctx.fillStyle=ac;ctx.shadowBlur=12;ctx.shadowColor=ac;ctx.fillRect(s.x,s.y,s.w,2);
       ctx.fillRect(s.x,s.y,2,BASE_H-s.y);ctx.fillRect(s.x+s.w-2,s.y,2,BASE_H-s.y);ctx.shadowBlur=0;
+    }
+    for(const l of W.ladders){
+      if(l.x+l.w<cam-20||l.x>cam+BASE_W+20)continue;
+      const lh=l.bottom-l.top;
+      ctx.fillStyle='#2e2c3c';ctx.fillRect(l.x,l.top,3.5,lh);ctx.fillRect(l.x+l.w-3.5,l.top,3.5,lh);
+      ctx.fillStyle=ac;ctx.globalAlpha=0.75;ctx.shadowBlur=6;ctx.shadowColor=ac;ctx.fillRect(l.x,l.top,1.2,lh);ctx.fillRect(l.x+l.w-1.2,l.top,1.2,lh);ctx.shadowBlur=0;ctx.globalAlpha=1;
+      for(let y=l.top+10;y<l.bottom-3;y+=12){ctx.fillStyle='#8a8aa0';ctx.fillRect(l.x+3,y,l.w-6,2.5);ctx.fillStyle='rgba(255,255,255,0.35)';ctx.fillRect(l.x+3,y,l.w-6,0.8);}
     }
     for(const s of W.plats){
       if(s.x+s.w<cam-20||s.x>cam+BASE_W+20)continue;
@@ -2045,8 +2083,8 @@ class Game{
     ctx.font=`20px ${FONT}`;ctx.fillStyle='#05d9e8';ctx.fillText("Creeps at the club? Kick 'em out!  10 clubs · 10 bosses",490,204);
     if(this.blink()){ctx.font=`bold 26px ${FONT}`;ctx.fillStyle='#39ff14';ctx.shadowBlur=12;ctx.shadowColor='#39ff14';ctx.fillText(IS_TOUCH?'TAP TO START':'PRESS ENTER TO START',490,240);ctx.shadowBlur=0;}
     ctx.font=`18px ${FONT}`;ctx.fillStyle='#d8c8e8';
-    const lines=IS_TOUCH?['◀ ▶ MOVE   ▲ or JUMP: JUMP   ▼+JUMP: DROP DOWN','KICK in mid-air while falling = DIVE KICK','ATK: weapon attack   WPN: switch Katana / Hammer']
-      :['← → / A D: MOVE   SPACE / ↑: JUMP   ↓+SPACE: DROP DOWN','J: KICK  (J while falling = DIVE KICK)','K: SWITCH WEAPON   L: WEAPON ATTACK   P: PAUSE / OUTFITS'];
+    const lines=IS_TOUCH?['◀ ▶ MOVE   ▲ ▼ CLIMB LADDERS   JUMP: JUMP   ▼+JUMP: DROP','KICK in mid-air while falling = DIVE KICK','ATK: weapon attack   WPN: switch Katana / Hammer']
+      :['← → MOVE   ↑ ↓ CLIMB LADDERS   SPACE: JUMP   ↓+SPACE: DROP','J: KICK  (J while falling = DIVE KICK)','K: SWITCH WEAPON   L: WEAPON ATTACK   P: PAUSE / OUTFITS'];
     lines.forEach((l,i)=>ctx.fillText(l,395,276+i*19));
     ctx.restore();
     ctx.drawImage(Tex.scanlines(),0,0,BASE_W,BASE_H);
