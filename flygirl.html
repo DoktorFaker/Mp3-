@@ -58,7 +58,7 @@ function fit(){
   else{
     // side wings hold the controls; the game keeps as much of the full height as the wings allow
     LAND=true;
-    const minWing=IS_TOUCH?Math.max(100,Math.min(h*0.38,w*0.17)):clamp(w*0.1,140,210),wing=Math.max((w-1.6*h)/2,minWing),gH=Math.min(h,(w-2*wing)/1.6);
+    const minWing=IS_TOUCH?Math.max(100,Math.min(h*0.43,w*0.2)):clamp(w*0.11,160,230),wing=Math.max((w-1.6*h)/2,minWing),gH=Math.min(h,(w-2*wing)/1.6);
     TW=Math.max(BASE_W+40,Math.round(w*BASE_H/gH));
   }
   GX=Math.round((TW-BASE_W)/2);
@@ -1765,14 +1765,15 @@ class Touch{
       const css=(parseFloat(canvas.style.height)||VH)/VH,px=v=>v/css,hc=VH*css;
       const rb=Math.min(GX*0.2,px(24)),cx=TW-GX/2,bot=VH-px(8);
       this.fsBtn={x:GX/2,y:px(8)+rb,r:rb,w:Math.min(GX*0.88,210)};this.pauseBtn={x:cx,y:px(8)+rb,r:rb};
-      const D=px(clamp(hc*0.44,130,230));
-      this.pad={kind:'cross',x:Math.max(D/2+px(6),GX/2),y:bot-D/2,s:D/3.1};
+      // everything stays inside the side wings: nothing ever covers the game picture
+      const wc=GX*css,D=px(Math.min(clamp(hc*0.44,110,230),wc-12));
+      this.pad={kind:'cross',x:GX/2,y:bot-D/2,s:D/3.1};
       // two-column zig-zag tucked into the right wing: JUMP (bottom) → KICK → ATK → weapon
       const topLim=this.pauseBtn.y+rb+px(6);
       let f=1,B;
       for(let it=0;it<2;it++){
-        const rj=px(clamp(hc*0.155,46,84))*f,rk=rj*0.76,rw=rj*0.66,g=px(4);
-        const xR=TW-px(8)-rj,dx=(rj+rk)*0.62,xL=xR-dx,step=(a,b)=>Math.sqrt(Math.max(0,(a+b+g)**2-dx*dx));
+        const rj=px(Math.min(clamp(hc*0.155,40,84),(wc-14)/2.85))*f,rk=rj*0.76,rw=rj*0.66,g=px(4);
+        const xR=TW-px(6)-rj,dx=(rj+rk)*0.62,xL=xR-dx,step=(a,b)=>Math.sqrt(Math.max(0,(a+b+g)**2-dx*dx));
         const jy=bot-rj,ky=jy-step(rj,rk),ay=ky-step(rk,rk),wy=ay-step(rk,rw);
         B=[
           {id:'jump',x:xR,y:jy,r:rj,label:'JUMP',key:'SPACE',c:'#00f3ff'},
@@ -1843,7 +1844,6 @@ class Touch{
     this.drawSmallBtn(this.pauseBtn,'pause');
     ctx.save();ctx.textAlign='center';ctx.textBaseline='middle';
     const P=this.pad,S=P.s,arm=S*1.08,len=S*1.55,on=this.s;
-    if(LAND)ctx.globalAlpha=0.88;
     const crossPath=()=>{ctx.beginPath();ctx.roundRect(P.x-len,P.y-arm/2,len*2,arm,arm*0.22);ctx.roundRect(P.x-arm/2,P.y-len,arm,len*2,arm*0.22);};
     ctx.save();ctx.shadowBlur=14;ctx.shadowColor='#000';ctx.fillStyle='rgba(0,0,0,0.6)';
     ctx.beginPath();ctx.arc(P.x,P.y,len*1.02,0,TAU);ctx.fill();ctx.restore();
@@ -1868,7 +1868,7 @@ class Touch{
     for(const b of this.btns){
       const on=this.s[b.id];
       ctx.beginPath();ctx.arc(b.x,b.y,b.r,0,TAU);
-      ctx.fillStyle=on?b.c:'rgba(10,0,20,0.45)';ctx.globalAlpha=on?0.55:1;ctx.fill();ctx.globalAlpha=LAND?0.9:1;
+      ctx.fillStyle=on?b.c:'rgba(10,0,20,0.45)';ctx.globalAlpha=on?0.55:1;ctx.fill();ctx.globalAlpha=1;
       ctx.strokeStyle=on?b.c:'rgba(255,255,255,0.45)';ctx.lineWidth=2.5;ctx.shadowBlur=on?18:6;ctx.shadowColor=b.c;ctx.stroke();ctx.shadowBlur=0;
       ctx.fillStyle=on?'#fff':b.c;
       if(b.id==='wpn'){const w=this.g.player.weapon?'HAMMER':'KATANA';ctx.font=`bold ${Math.round(b.r*0.42)}px ${FONT}`;ctx.fillText(w,b.x,b.y-b.r*0.08);ctx.font=`${Math.round(b.r*0.3)}px ${FONT}`;ctx.fillText('⇄ SWAP',b.x,b.y+b.r*0.36);}
