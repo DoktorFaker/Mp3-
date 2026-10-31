@@ -126,7 +126,7 @@ const Sfx=(()=>{
       try{
         ac=new(window.AudioContext||window.webkitAudioContext)();
         master=ac.createGain();master.gain.value=0.8;master.connect(ac.destination);
-        musicG=ac.createGain();musicG.gain.value=0.32;musicG.connect(master);
+        musicG=ac.createGain();musicG.gain.value=0.36;musicG.connect(master);
         noiseBuf=ac.createBuffer(1,Math.floor(ac.sampleRate*0.5),ac.sampleRate);
         const d=noiseBuf.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;
       }catch(e){ac=null;}
@@ -147,24 +147,91 @@ const Sfx=(()=>{
     const g=ac.createGain();g.gain.setValueAtTime(vol,t);g.gain.exponentialRampToValueAtTime(0.0008,t+dur);
     s.connect(f);f.connect(g);g.connect(dest||master);s.start(t);s.stop(t+dur+0.02);
   }
-  const BASS=[0,0,12,0,7,0,10,12];
+  // ── CLUB TRACK: 80s italo-disco groove generated live ─────────────────────
+  // four-on-the-floor kick with sidechain "pump", claps, hats, octave bass, chord stabs, pad,
+  // a catchy lead hook with echo, an arp in the second half of every 16-bar cycle, and fills.
+  const MUSIC_VOL=0.36;
+  let stepDur=0.125,songStart=0,intensity=0,pump=null,echo=null;
+  const PROG=[[0,3],[-4,4],[3,4],[-2,4]];            // i – VI – III – VII  (root offset, third)
+  const HOOK=[[12,-1,12,15,-1,12,10,-1,7,-1,10,-1,12,-1,-1,-1, 15,-1,15,17,-1,15,12,-1,10,-1,12,-1,7,-1,-1,-1],
+              [19,-1,17,15,-1,12,-1,10,12,-1,15,-1,12,-1,-1,-1, 10,-1,12,10,-1,7,-1,5,7,-1,10,-1,12,-1,-1,-1]];
+  const hz=n=>root*Math.pow(2,n/12);
+  function buildBus(){
+    if(pump)return;
+    pump=ac.createGain();
+    const comp=ac.createDynamicsCompressor();comp.threshold.value=-16;comp.ratio.value=4;comp.attack.value=0.003;comp.release.value=0.16;
+    musicG.disconnect();musicG.connect(comp);comp.connect(master);pump.connect(musicG);
+    echo=ac.createDelay(1);const fb=ac.createGain(),wet=ac.createGain(),lp=ac.createBiquadFilter();
+    fb.gain.value=0.32;wet.gain.value=0.35;lp.type='lowpass';lp.frequency.value=2600;
+    echo.connect(lp);lp.connect(fb);fb.connect(echo);lp.connect(wet);wet.connect(pump);
+  }
+  function nz(dur,vol,t,type,freq,q,dest){
+    const s=ac.createBufferSource();s.buffer=noiseBuf;
+    const f=ac.createBiquadFilter();f.type=type;f.frequency.value=freq;if(q)f.Q.value=q;
+    const g=ac.createGain();g.gain.setValueAtTime(vol,t);g.gain.exponentialRampToValueAtTime(0.0008,t+dur);
+    s.connect(f);f.connect(g);g.connect(dest);s.start(t);s.stop(t+dur+0.02);
+  }
+  function kickD(t){
+    const o=ac.createOscillator(),g=ac.createGain();
+    o.type='sine';o.frequency.setValueAtTime(165,t);o.frequency.exponentialRampToValueAtTime(42,t+0.16);
+    g.gain.setValueAtTime(1.0,t);g.gain.exponentialRampToValueAtTime(0.001,t+0.32);
+    o.connect(g);g.connect(musicG);o.start(t);o.stop(t+0.34);
+    nz(0.012,0.3,t,'highpass',3000,0,musicG);
+    pump.gain.cancelScheduledValues(t);pump.gain.setValueAtTime(0.3,t);pump.gain.linearRampToValueAtTime(1,t+stepDur*1.8);
+  }
+  function clap(t){for(let i=0;i<3;i++)nz(0.05,0.32,t+i*0.011,'bandpass',1350,1.4,musicG);nz(0.2,0.2,t+0.033,'bandpass',1150,1,musicG);}
+  function bassN(f,t,len){
+    const o=ac.createOscillator(),o2=ac.createOscillator(),fl=ac.createBiquadFilter(),g=ac.createGain();
+    o.type='sawtooth';o2.type='square';o.frequency.value=f;o2.frequency.value=f*0.5;
+    fl.type='lowpass';fl.Q.value=8;fl.frequency.setValueAtTime(1700+intensity*700,t);fl.frequency.exponentialRampToValueAtTime(170,t+len);
+    g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(0.4,t+0.005);g.gain.exponentialRampToValueAtTime(0.001,t+len);
+    o.connect(fl);o2.connect(fl);fl.connect(g);g.connect(pump);o.start(t);o2.start(t);o.stop(t+len+0.02);o2.stop(t+len+0.02);
+  }
+  function chord(notes,t,len,vol,type,cut){
+    const fl=ac.createBiquadFilter(),g=ac.createGain();
+    fl.type='lowpass';fl.frequency.setValueAtTime(cut,t);fl.frequency.exponentialRampToValueAtTime(Math.max(300,cut*0.25),t+len);
+    g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(vol,t+(len>0.5?0.08:0.006));g.gain.exponentialRampToValueAtTime(0.001,t+len);
+    fl.connect(g);g.connect(pump);
+    notes.forEach((f,i)=>{const o=ac.createOscillator();o.type=type;o.frequency.value=f*(i%2?1.003:0.997);o.connect(fl);o.start(t);o.stop(t+len+0.02);});
+  }
+  function leadN(f,t,len){
+    const o=ac.createOscillator(),g=ac.createGain(),fl=ac.createBiquadFilter(),v=ac.createOscillator(),vg=ac.createGain();
+    o.type='square';o.frequency.setValueAtTime(f,t);v.frequency.value=5.5;vg.gain.value=f*0.006;v.connect(vg);vg.connect(o.frequency);
+    fl.type='lowpass';fl.frequency.value=3200;
+    g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(0.12,t+0.01);g.gain.setValueAtTime(0.1,t+len*0.6);g.gain.exponentialRampToValueAtTime(0.001,t+len);
+    o.connect(fl);fl.connect(g);g.connect(pump);g.connect(echo);o.start(t);v.start(t);o.stop(t+len+0.02);v.stop(t+len+0.02);
+  }
   function sched(){
     if(!ac||!musicOn)return;
-    while(nextT<ac.currentTime+0.25){
-      const s=step%16,bar=Math.floor(step/16)%4,t=nextT;
-      if(s%4===0)tone(150,'sine',0.22,0.9,t,40,musicG);
-      if(s%4===2)noise(0.04,0.22,t,7000,musicG);
-      if(s===4||s===12)noise(0.12,0.3,t,1800,musicG);
-      if(s%2===0){const prog=[0,0,5,7][bar];tone(root*2*Math.pow(2,(prog+BASS[(s/2)%8])/12),'sawtooth',0.11,0.16,t,0,musicG);}
-      if(s===0&&bar%2===0)tone(root*8*Math.pow(2,[0,3,7,10][Math.floor(step/32)%4]/12),'triangle',0.5,0.05,t,0,musicG);
-      nextT+=0.115;step++;
+    while(nextT<ac.currentTime+0.2){
+      const t=nextT,s=step%16,bar=Math.floor(step/16),part=bar%16,B=part>=8,fill=part%8===7&&s>=12;
+      const [cr,third]=PROG[bar%4],tri=[0,third,7];
+      if(s%4===0&&!(fill&&s>12))kickD(t);
+      if(s===4||s===12)clap(t);
+      if(fill)nz(0.07,0.22+0.05*(s-12),t,'bandpass',1900,0.9,musicG);
+      if(s%2===1)nz(0.025,0.07,t,'highpass',9000,0,musicG);
+      if(s%4===2)nz(0.13,0.12,t,'highpass',6500,0,musicG);
+      if(intensity&&s%2===0)nz(0.05,0.06,t,'highpass',5000,0,musicG);
+      if(s%2===0)bassN(hz(cr+(s%4===2?12:0)),t,stepDur*1.7);
+      if(s===0)chord(tri.map(n=>hz(cr+24+n)),t,stepDur*16,0.035,'triangle',1800);
+      if(s===2||s===6||s===10||s===14)chord(tri.map(n=>hz(cr+24+n)),t,stepDur*1.4,B?0.075:0.055,'sawtooth',3400);
+      if(B||intensity||part%8>=4){const n=HOOK[Math.floor(part/2)%2][(part%2)*16+s];if(n>=0)leadN(hz(n+24),t,stepDur*1.8);}
+      if(B)chord([hz(cr+36+[0,third,7,12][s%4])],t,stepDur*0.9,0.03,'triangle',4000);
+      nextT+=stepDur;step++;
     }
   }
   return{
     init,
-    startMusic(r){init();if(!ac)return;root=r||55;if(!timer){nextT=ac.currentTime+0.05;step=0;timer=setInterval(sched,40);}},
+    startMusic(r,li){
+      init();if(!ac)return;root=r||55;stepDur=60/(118+((li||0)*3)%11)/4;buildBus();echo.delayTime.value=stepDur*3;
+      if(!timer){nextT=ac.currentTime+0.06;songStart=nextT;step=0;timer=setInterval(sched,25);}
+    },
     stopMusic(){if(timer){clearInterval(timer);timer=null;}},
     toggleMusic(){musicOn=!musicOn;return musicOn;},
+    setIntensity(n){intensity=n;},
+    beatPhase(){if(!ac||!timer||!musicOn)return null;const b=(ac.currentTime-songStart)/(stepDur*4);return b<0?0:b-Math.floor(b);},
+    beatN(){if(!ac||!timer||!musicOn)return null;return Math.max(0,Math.floor((ac.currentTime-songStart)/(stepDur*4)));},
+    duck(d){if(!ac||!musicG)return;const t=ac.currentTime,g=musicG.gain;g.cancelScheduledValues(t);g.setTargetAtTime(MUSIC_VOL*0.4,t,0.05);g.setTargetAtTime(MUSIC_VOL,t+d,0.3);},
     get musicOn(){return musicOn;},
     kick(){tone(200,'square',0.08,0.16,0,70);noise(0.05,0.12,0,3000);},
     swing(){noise(0.09,0.16,0,4000);tone(900,'sawtooth',0.07,0.06,0,300);},
@@ -358,6 +425,21 @@ const LINES_LEG=["MY LEG!","Oww, my knee!","Not the knee!","I need a doctor!","I
 const LINES_FLY=["Whoaaa!","I can fly!","Not the face!","Waaah!"];
 const LINES_GIRL_THROW=["Fly, creep!","Out of my space!","Air mail, loser!","Judo, baby!"];
 const LINES_GIRL_LEG=["Break a leg, creep!","That's for grabbing!","Hands to yourself!","Walk it off!"];
+const LINES_DANCE=["Dance with me, baby!","Check out my moves, foxy!","Wanna boogie, sugar?","Shake it with me, babe!","Like my moves? Come closer!","Let's dance, hot stuff!"];
+const LINES_DANCING=["Whoo! Yeah!","Feel the beat!","Get down tonight!","Watch this, babe!","I'm on fire!","Disco never dies!"];
+const DANCE_MOVES=['pump','wave','disco','robot','sway','runman'];
+// Pose overrides for a dancing guy, driven by the music's beat phase (0..1) and beat count
+function dancePose(move,ph,n){
+  const pulse=Math.pow(1-ph,3),k=0.35*pulse,s=Math.sin((n+ph)*Math.PI),odd=n%2===1;
+  switch(move){
+    case'pump':return{armF:[lerp(2.5,2.95,pulse),lerp(2.8,3.1,pulse),0],armB:[-0.5,1.1],legF:[0.12,k],legB:[-0.12,k],dy:pulse*3,lean:-0.05};
+    case'wave':return{armF:[2.7+0.3*s,2.9+0.4*s,0],armB:[2.7-0.3*s,2.9-0.4*s],legF:[0.1,k],legB:[-0.1,k],dy:pulse*2,lean:0.1*s};
+    case'disco':return{armF:odd?[0.6,0.2,0]:[2.4,2.3,0],armB:[-0.5,1.1],legF:odd?[0.05,k]:[0.4,0],legB:[-0.1,k],dy:pulse*2,lean:odd?-0.12:0.12};
+    case'robot':return{armF:[0.1,odd?1.57:0.6,0],armB:[0.1,odd?0.6:1.57],legF:[0.06,0],legB:[-0.06,0],dy:0,lean:0,nod:odd?0.08:-0.08};
+    case'sway':return{armF:[0.4+0.25*s,1.9,0.2*s],armB:[0.2-0.3*s,0.5],legF:[0.15*s,k],legB:[-0.15*s,k],dy:pulse*2,lean:0.14*s};
+    default:{const r=odd?1:-1,q=1-ph;return{armF:[0.4+0.5*r*q,1.8,0],armB:[-0.2-0.5*r*q,1.2],legF:[0.55*r*q,0.9*Math.max(0,r*q)],legB:[-0.4*r*q,0.6*Math.max(0,-r*q)],dy:pulse*2,lean:0.05};}
+  }
+}
 const LINES_KO=["I'll call you!","Worth it...","My Walkman!","Mom's gonna kill me...","I think I'm in love...","Totally bogus...","Note to self: no.","Tell my Camaro I love it...","Ow... my pride...","Rejected... again."];
 const LINES_IDLE=["Where's the party?","This DJ is rad!","Anyone seen my comb?","Another round!","Is that Bon Jovi?","Tubular!","Who wants to see my moonwalk?","I'm the life of the party!","Totally wasted...","Check out my moves!"];
 const LEVEL_STORY=[
@@ -410,7 +492,7 @@ const Voice=(()=>{
           const pool=maleReal?male:(neutral.length?neutral:voices);if(pool.length)u.voice=pool[(o.seed||0)%pool.length];
           u.pitch=maleReal?clamp(p,0.45,1.05):clamp(p*0.55,0.1,0.55);u.rate=o.rate||0.95;
         }
-        u.volume=1;busyUntil=now+400+txt.length*75/(u.rate||1);u.onend=u.onerror=()=>{busyUntil=0;};S.speak(u);
+        u.volume=1;busyUntil=now+400+txt.length*75/(u.rate||1);u.onend=u.onerror=()=>{busyUntil=0;};S.speak(u);Sfx.duck((busyUntil-now)/1000);
       }catch(e){}
     },
     stop(){if(S)S.cancel();},
@@ -473,7 +555,7 @@ function drawDude(X,L,P,x,y,dir,sc){
   if(P.fall){X.translate(0,-P.fall*5);X.rotate(-P.fall*1.5);}
   if(P.rot){X.translate(0,-40);X.rotate(P.rot);X.translate(0,40);}
   X.lineCap='round';X.lineJoin='round';
-  const bob=-Math.abs(Math.sin(ph))*2*mv*(P.limp?2.6:1),hipY=-34+bob;
+  const bob=-Math.abs(Math.sin(ph))*2*mv*(P.limp?2.6:1),hipY=-34+bob+(P.dy||0);
   const lean=(P.lean||0)+Math.sin(t*1.7+(P.seed||0))*0.07*drunk-(P.flinch||0)*0.3;
   const sA=Math.sin(ph)*0.55*mv,swing=-sA*0.9;
   const legW=6.8*Math.sqrt(g);
@@ -525,10 +607,11 @@ function drawDude(X,L,P,x,y,dir,sc){
     X.strokeStyle=W('#ffd319');X.lineWidth=1.2;X.stroke();X.restore();}
   let fA=sA,fK=Math.max(0,Math.sin(ph+1.4))*0.8*mv,bA=-sA,bK=Math.max(0,Math.sin(ph+1.4+Math.PI))*0.8*mv;
   if(P.legBreak){fA=0.6;fK=-1.3;bA=-0.05;bK=0.1;}else if(P.limp){fK*=0.15;}
+  if(P.legF){fA=P.legF[0];fK=P.legF[1];}if(P.legB){bA=P.legB[0];bK=P.legB[1];}
   leg(bA,bK,true);
   X.save();X.translate(0,hipY);X.rotate(lean);
   const reach=P.reach||0;
-  const backHand=arm(-0.5,lerp(swing,1.45,reach),lerp(swing+0.35,1.55,reach),true);hand(backHand,true);
+  const backHand=P.armB?arm(-0.5,P.armB[0],P.armB[1],true):arm(-0.5,lerp(swing,1.45,reach),lerp(swing+0.35,1.55,reach),true);hand(backHand,true);
   // torso
   const tg=X.createLinearGradient(bx,0,fx,0);
   const jacket=['jacket','leather','blazer','suit','trench','track'].includes(L.top);
@@ -615,7 +698,8 @@ function drawDude(X,L,P,x,y,dir,sc){
   X.restore();
   // front arm + drink
   let tu,tf,tilt=0;
-  if(P.hug){tu=1.4+Math.sin(t*9)*0.08;tf=1.8;}
+  if(P.armF){tu=P.armF[0];tf=P.armF[1];tilt=P.armF[2]||0;}
+  else if(P.hug){tu=1.4+Math.sin(t*9)*0.08;tf=1.8;}
   else if(P.throwA!=null){const a=P.throwA;tu=a<0.6?lerp(0.2,-2.6,a/0.6):lerp(-2.6,1.6,Math.min(1,(a-0.6)/0.4));tf=tu+(a<0.6?0.9:0.2);}
   else if(L.drink==='none'){const r2=P.reach2!=null?P.reach2:reach;tu=lerp(-swing*0.9,1.5,r2);tf=lerp(tu+0.45,1.6,r2);}
   else{const s=P.sip||0;tu=lerp(0.15+swing*0.25,0.95,s);tf=lerp(tu+1.95,3.55,s);tilt=-s*1.1;}
@@ -1017,6 +1101,7 @@ class Enemy{
     this.vx=0;this.vy=0;this.dir=-1;this.kb=0;this.stun=0;this.hitT=0;this.onGround=false;this.surf=null;this.contact=false;
     this.st='walk';this.stT=0;this.flirtCd=rnd(0.4,1.8);this.say=null;this.ph=Math.random()*6;this.seed=Math.random()*9;
     this.vp=type==='mini'?1.35:rnd(0.45,1);this.vr=rnd(0.85,1.05);this.vs=Math.floor(Math.random()*7);this.lastWords=pick(Math.random,LINES_KO);
+    this.dancer=type==='dude'&&Math.random()<0.5;this.move=pick(Math.random,DANCE_MOVES);
     this.drunk=rnd(0.35,1);this.legT=0;this.limp=false;this.rot=0;this.spin=0;this.sip=0;this.reach=0;this.hasDrink=true;this.throwCd=rnd(1.2,2.6);this.throwA=null;this.refill=0;this.shootT=rnd(1.2,2.4);
   }
   get liq(){return LIQ[this.look.drink]||'#ffffff';}
@@ -1030,6 +1115,7 @@ class Enemy{
     if(stun)this.stun=Math.max(this.stun,stun);
     this.vy=Math.min(this.vy,-150);
     if(this.st!=='thrown'){this.st='walk';this.stT=0;}this.flirtCd=Math.max(this.flirtCd,1.2);this.reach=0;this.throwA=null;
+    this.dancer=false;
     if(this.hp>0&&Math.random()<0.35)this.speak(LINES_OUCH,0.9);
   }
   update(dt,g){
@@ -1072,8 +1158,18 @@ class Enemy{
     }else{
       switch(this.st){
         case'walk':
+          if(this.dancer&&this.onGround&&adx>215&&adx<560){this.st='dance';this.stT=0;break;}
           if(near){this.dir=pcx<cx?-1:1;want=1;if(adx<175&&this.flirtCd<=0){this.st='flirt';this.stT=0;this.followed=false;this.speak(LINES_FLIRT,1.6);g.hearts(this);if(Math.random()<0.5)Sfx.whistle();}}
           else{want=0.6;if(g.chatT<=0&&Math.random()<dt*0.3){g.chatT=4.5;this.speak(LINES_IDLE,1.7);}if(adx<1100&&Math.random()<dt*0.9)this.dir=pcx<cx?-1:1;if(Math.random()<dt*0.12){this.st='sip';this.stT=0;}}
+          break;
+        case'dance':
+          this.dir=pcx<cx?-1:1;
+          if(adx<=215&&sameLvl){this.dancer=false;this.st='flirt';this.stT=0;this.followed=false;this.speak(LINES_DANCE,1.6);g.hearts(this);}
+          else if(adx>=600)this.st='walk';
+          else{
+            if(Math.random()<dt*1.1)g.vfx.push(new Popup(cx+rnd(-14,14),this.y-6,Math.random()<0.5?'♪':'♫',pick(Math.random,['#ff4fd8','#05d9e8','#ffd319','#39ff14'])));
+            if(g.chatT<=0&&Math.random()<dt*0.35){g.chatT=4;this.speak(LINES_DANCING,1.4);}
+          }
           break;
         case'sip':if(this.stT>1.1||near)this.st='walk';break;
         case'flirt':
@@ -1121,6 +1217,7 @@ class Enemy{
       reach:st==='flirt'?0.45:this.reach,talk:this.legT>0?1:this.say?(Math.sin(this.t*24)>0?1:0.3):0,wink:st==='flirt'&&Math.sin(this.t*4)>0.2,brow:st==='flirt'||st==='lunge'?1:0,
       sip:this.sip,flinch:this.hitT>0?1:0,flash:this.hitT>0.08,hasDrink:this.hasDrink,throwA:this.throwA,alpha:this.type==='clone'?0.55:1,
       nod:this.stun>0?Math.sin(this.t*6)*0.2:0};
+    if(st==='dance'&&game){const bi=game.beatInfo();Object.assign(P,dancePose(this.move,bi.ph,bi.n));P.mv=0;}
     drawDude(ctx,this.look,P,cx,fy,this.dir,this.sc);
     if(this.type==='clone'){ctx.fillStyle='rgba(180,240,255,0.5)';for(let i=0;i<3;i++)ctx.fillRect(this.x+rnd(-6,6),this.y+Math.random()*this.h,this.w,1.5);}
     if(this.stun>0){ctx.fillStyle='#ffff66';for(let i=0;i<3;i++){const a=this.t*6+i*TAU/3;ctx.fillRect(cx+Math.cos(a)*11-1.5,this.y-4+Math.sin(a)*3-1.5,3,3);}}
@@ -1742,7 +1839,7 @@ class Game{
     }
   }
   pause(){if(this.state==='playing'){this.state='paused';this.stateT=0;Sfx.stopMusic();Voice.stop();}}
-  resume(){if(this.state==='paused'){this.state='playing';this.pressed={};this.tc.p={};Sfx.startMusic(this.lv.root);}}
+  resume(){if(this.state==='paused'){this.state='playing';this.pressed={};this.tc.p={};Sfx.startMusic(this.lv.root,this.li);}}
   cycleOutfit(){const p=this.player,list=[null,...p.outfits];p.outfit=list[(list.indexOf(p.outfit)+1)%list.length];Sfx.hit();}
   newGame(){
     Sfx.init();this.score=0;this.player=new Player();this.unlocked=[];
@@ -1757,12 +1854,13 @@ class Game{
     this.groundPat=hiPattern(Tex.floor(lv.ac));this.platPat=hiPattern(Tex.plat(lv.ac));
     this.banner={a:`LEVEL ${i+1}`,b:lv.name.toUpperCase(),t:2.6,c:lv.ac};
     this.timers=[];this.story={txt:LEVEL_STORY[i],t:-2.4,dur:7.5};this.hold=null;
-    Sfx.stopMusic();Sfx.startMusic(lv.root);Sfx.level();
+    Sfx.stopMusic();Sfx.setIntensity(0);Sfx.startMusic(lv.root,i);Sfx.level();
   }
   get minX(){return this.locked?this.world.AX:0;}
   get maxX(){return(this.gateOpened||this.bossStarted)?this.world.AX+BASE_W:this.world.AX-4;}
   acc(){return this.lv.rainbow?`hsl(${Math.floor(this.t*90)%360},100%,60%)`:this.lv.ac;}
-  beat(){return 1-((this.t%0.46)/0.46);}
+  beatInfo(){const ph=Sfx.beatPhase();if(ph==null){const b=this.t*2;return{ph:b-Math.floor(b),n:Math.floor(b)};}return{ph,n:Sfx.beatN()};}
+  beat(){return 1-this.beatInfo().ph;}
   // fx helpers
   shake(t){this.shakeT=Math.max(this.shakeT,t);}
   sparks(x,y,c,n=10,sp=260){for(let i=0;i<n;i++){const a=Math.random()*TAU,s=rnd(0.3,1)*sp;this.vfx.push(new Particle(x,y,Math.cos(a)*s,Math.sin(a)*s-60,Math.random()<0.3?'#ffffff':c,rnd(0.25,0.55),rnd(1.5,3.2),600));}}
@@ -1949,7 +2047,7 @@ class Game{
   startBoss(){
     this.bossStarted=true;this.locked=true;
     this.enemies.forEach(e=>this.sparks(e.x+e.w/2,e.y+e.h/2,e.color,8));this.enemies=[];this.projs=[];
-    this.boss=new Boss(this.lv.boss,this.li,this);
+    this.boss=new Boss(this.lv.boss,this.li,this);Sfx.setIntensity(1);
     this.banner={a:'⚠ WARNING ⚠',b:this.lv.boss.name.toUpperCase(),t:2.4,c:'#ff2244'};Sfx.roar();
     this.later(2.9,()=>this.playerSay([BOSS_REPLY[this.li]],true));
   }
@@ -2187,7 +2285,7 @@ class Game{
     for(const s of W.ground){
       if(s.x+s.w<cam-20||s.x>cam+BASE_W+20)continue;
       ctx.save();ctx.translate(0,s.y);ctx.fillStyle=this.groundPat;ctx.fillRect(s.x,0,s.w,BASE_H-s.y+20);ctx.restore();
-      {const T=48,c0=Math.floor(Math.max(s.x,cam-20)/T),c1=Math.ceil(Math.min(s.x+s.w,cam+BASE_W+20)/T),bt=Math.floor(this.t/0.46);
+      {const T=48,c0=Math.floor(Math.max(s.x,cam-20)/T),c1=Math.ceil(Math.min(s.x+s.w,cam+BASE_W+20)/T),bt=this.beatInfo().n;
         ctx.save();ctx.globalCompositeOperation='lighter';
         for(let ci=c0;ci<c1;ci++)for(let r=0;r<2;r++){
           if(((ci*7+r*13+bt*5)%11+11)%11<4){const x0=Math.max(s.x,ci*T),x1=Math.min(s.x+s.w,(ci+1)*T);
@@ -2390,7 +2488,7 @@ class Game{
     this.bd.draw(this.camX,0,this.t,lv.ac,beat);
     if(!this.titlePat)this.titlePat=hiPattern(Tex.floor(lv.ac));
     ctx.save();ctx.translate(-(this.camX%48),GROUND_Y);ctx.fillStyle=this.titlePat;ctx.fillRect(0,0,BASE_W+48,BASE_H-GROUND_Y);
-    const bt=Math.floor(this.t/0.46);ctx.globalCompositeOperation='lighter';
+    const bt=this.beatInfo().n;ctx.globalCompositeOperation='lighter';
     for(let ci=0;ci<18;ci++)for(let r=0;r<2;r++)if((ci*7+r*13+bt*5)%11<4){ctx.globalAlpha=0.22+0.18*beat;ctx.fillStyle=DISCO[(ci+r+bt)%5];ctx.fillRect(ci*48+3,r*48+3,42,42);}
     ctx.restore();
     ctx.fillStyle=lv.ac;ctx.shadowBlur=12;ctx.shadowColor=lv.ac;ctx.fillRect(0,GROUND_Y,BASE_W,2);ctx.shadowBlur=0;
