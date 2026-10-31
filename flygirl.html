@@ -41,7 +41,7 @@ function fit(){
   else{
     // side wings hold the controls; the game keeps as much of the full height as the wings allow
     LAND=true;
-    const minWing=IS_TOUCH?Math.max(110,h*0.34):clamp(w*0.12,160,240),wing=Math.max((w-1.6*h)/2,minWing),gH=Math.min(h,(w-2*wing)/1.6);
+    const minWing=IS_TOUCH?Math.max(64,h*0.2):clamp(w*0.1,140,210),wing=Math.max((w-1.6*h)/2,minWing),gH=Math.min(h,(w-2*wing)/1.6);
     TW=Math.max(BASE_W+40,Math.round(w*BASE_H/gH));
   }
   GX=Math.round((TW-BASE_W)/2);
@@ -332,10 +332,10 @@ function shade(hex,k){
 }
 const SKINS=['#f6d0b1','#eab48f','#d39a6f','#b57a4f','#8d5a36','#64402a'];
 const HAIRS=['#16100c','#3a2414','#5e3a1c','#8b5a2b','#c58f4a','#e2c27a','#9a2f12'];
-const LINES_FLIRT=["Hey baby!","Ooh mama, look at you!","Hey hot stuff!","Your place or mine, baby?","Wanna see my waterbed?","Did it hurt when you fell from heaven?","Hey sugar, buy you a drink?","Come to papa!","Mmm, foxy lady!","Is this seat taken? Now it is!","You got FINE written all over you!","I've got a hot tub in my van!","You and me, back seat of my Camaro?","Wanna come up and see my etchings?","Hey legs, where you been all night?","I'm not drunk, I'm in love!","They call me The Stallion, baby!","What's your sign, sugar?","Lose the friends, babe. I'm all you need!","I've been watching you all night...","Got a boyfriend? Doesn't matter!","Rowr! Purrr!","Smile, sweetheart!","Nice leg warmers, babe!","Let's get physical, baby!","Wanna see my Walkman?","My Trans Am is parked outside!","Hey, Fly Girl!","Ooh, come here, cupcake!","I'm kind of a big deal, babe"];
-const LINES_FOLLOW=["C'mon, don't be shy...","I don't bite. Much.","Just one little dance...","Play hard to get, I like that!","I know you want me, babe!","Don't walk away, sugar!","Let me buy you a wine cooler!","Ever been with a real man?","Daddy's got a credit card!","Wink wink, nudge nudge!","Let's go somewhere quieter...","Gimme your number, foxy!","You look lonely, baby!","I'll make it worth your while!"];
+const LINES_FLIRT=["Hey baby!","Ooh mama, look at you!","Hey hot stuff!","Your place or mine, baby?","Wanna see my waterbed?","Did it hurt when you fell from heaven?","Hey sugar, buy you a drink?","Come to papa!","Mmm, foxy lady!","Is this seat taken? Now it is!","You got FINE written all over you!","I've got a hot tub in my van!","You and me, back seat of my Camaro?","Wanna come up and see my etchings?","Hey legs, where you been all night?","I'm not drunk, I'm in love!","They call me The Stallion, baby!","What's your sign, sugar?","Lose the friends, babe. I'm all you need!","I've been watching you all night...","Got a boyfriend? Doesn't matter!","Rowr! Purrr!","Smile, sweetheart!","Nice leg warmers, babe!","Let's get physical, baby!","Wanna see my Walkman?","My Trans Am is parked outside!","Hey, Fly Girl!","Ooh, come here, cupcake!","I'm kind of a big deal, babe","You want to sit on my face?","Wanna ride the Stallion, baby?","My van's got a mattress, babe!","Come warm up my waterbed!","Hot tub. Me. You. Now.","Is it hot in here or is it you?"];
+const LINES_FOLLOW=["C'mon, don't be shy...","Sit on my face, sugar. Think about it!","My face is free all night, baby!","I've got room on my lap!","Come back to my van, foxy!","I don't bite. Much.","Just one little dance...","Play hard to get, I like that!","I know you want me, babe!","Don't walk away, sugar!","Let me buy you a wine cooler!","Ever been with a real man?","Daddy's got a credit card!","Wink wink, nudge nudge!","Let's go somewhere quieter...","Gimme your number, foxy!","You look lonely, baby!","I'll make it worth your while!"];
 const LINES_OUCH=["Ow!","Hey!","My drink!","Bogus!","Not cool!","Grody!","Harsh!","Okay, okay!","Not the hair!","My perm!","Gnarly kick!","Mom!!","That's bogus!","My jacket!"];
-const LINES_GIRL=["Back off!","Ew. Just ew.","Not even in your dreams!","Gross! Get lost!","Keep walking, sleazeball!","Your van? Hard pass!","I'd rather kiss a cassette!","Not interested!","Get lost!","In your dreams!","Gag me with a spoon!","As if!","Talk to the foot!","Grow up!","Take a hike!","Read my lips: NO!","Get a clue!","Beat it!","Not in a million years!","Take your mullet and go!","Hasta la vista, creep!","Next!"];
+const LINES_GIRL=["Back off!","In your nightmares!","Ew! You're disgusting!","Sit on THIS kick!","Gross! Kick incoming!","Ew. Just ew.","Not even in your dreams!","Gross! Get lost!","Keep walking, sleazeball!","Your van? Hard pass!","I'd rather kiss a cassette!","Not interested!","Get lost!","In your dreams!","Gag me with a spoon!","As if!","Talk to the foot!","Grow up!","Take a hike!","Read my lips: NO!","Get a clue!","Beat it!","Not in a million years!","Take your mullet and go!","Hasta la vista, creep!","Next!"];
 const LINES_GIRL_HURT=["Hands off!","Ew! Back off!","Don't touch me!","You'll regret that!","Watch it, creep!","Keep your hands to yourself!"];
 const LINES_THROW=["Catch, babe!","Drink up!","Cheers!","Have one on me!","Bottoms up!","Free drink!"];
 const LINES_THROW_HIT=["Ha! Drinks on you!","Oops, my bad, babe!","Cheers, sweetheart!","Nice catch!","Bullseye!"];
@@ -362,7 +362,7 @@ const BOSS_DEFEAT=["Okay... you're on the list.","My records... scratched...","I
 // Spoken lines via the browser's speech synthesizer: guys always get a male (or pitched-down) voice,
 // Fly Girl a female one. Voice names differ per OS, so known iOS/macOS/Android/Windows names are matched.
 const Voice=(()=>{
-  const S=window.speechSynthesis;let on=true,voices=[],male=[],female=[],neutral=[],maleReal=false,unlocked=false;
+  const S=window.speechSynthesis;let on=true,voices=[],male=[],female=[],neutral=[],maleReal=false,unlocked=false,busyUntil=0;
   const NOVELTY=/bad news|bells|boing|bubbles|cellos|whisper|zarvox|trinoids|wobble|jester|organ|superstar|good news|deranged|hysterical|bahh|albert/i;
   const FEMALE=/female|samantha|victoria|karen|zira|susan|moira|tessa|fiona|allison|\bava\b|serena|kate|joanna|salli|kimberly|hazel|aria|jenny|sonia|libby|catherine|kathy|martha|nicky|shelley|\bflo\b|sandy|grandma|veena|\bivy\b|emma|\bamy\b|olivia|natasha|clara|michelle|heather|linda|helena|google us english|google uk english female|x-sfg|x-tpc|x-iob|x-iog|x-gba|x-gbc|x-gbg|x-afa|x-afc|x-ena/i;
   const MALE=/\bmale\b|daniel|alex\b|fred|david|george|james|\btom\b|aaron|arthur|rishi|oliver|\bmark\b|\bguy\b|christopher|eric|roger|steffan|ryan|brian|matthew|joey|justin|russell|gordon|reed|rocko|eddy|ralph|bruce|junior|grandpa|\blee\b|liam|thomas|william|google uk english male|x-iol|x-iom|x-tpd|x-rjs|x-gbd|x-aub|x-aud|x-end|x-ene/i;
@@ -377,11 +377,14 @@ const Voice=(()=>{
   }
   if(S){load();try{S.addEventListener('voiceschanged',load);}catch(e){S.onvoiceschanged=load;}}
   return{
-    unlock(){if(!S||unlocked)return;unlocked=true;load();try{const u=new SpeechSynthesisUtterance(' ');u.volume=0;S.speak(u);}catch(e){}},
+    unlock(){if(!S||unlocked)return;unlocked=true;load();try{S.cancel();const u=new SpeechSynthesisUtterance('hi');u.volume=0.01;u.rate=2;S.speak(u);}catch(e){}},
     say(txt,who,o={}){
       if(!S||!on)return;
       if(!voices.length)load();
-      if(S.speaking||S.pending){if(!o.force)return;S.cancel();}
+      const now=performance.now();
+      if(S.paused)try{S.resume();}catch(e){}
+      if((S.speaking||S.pending)&&now<busyUntil){if(!o.force)return;S.cancel();}
+      else if(S.speaking||S.pending)S.cancel();
       try{
         const u=new SpeechSynthesisUtterance(txt.replace(/[♥.]{2,}|♥/g,' '));
         const p=o.pitch==null?0.8:o.pitch;
@@ -390,7 +393,7 @@ const Voice=(()=>{
           const pool=maleReal?male:(neutral.length?neutral:voices);if(pool.length)u.voice=pool[(o.seed||0)%pool.length];
           u.pitch=maleReal?clamp(p,0.45,1.05):clamp(p*0.55,0.1,0.55);u.rate=o.rate||0.95;
         }
-        u.volume=1;S.speak(u);
+        u.volume=1;busyUntil=now+400+txt.length*75/(u.rate||1);u.onend=u.onerror=()=>{busyUntil=0;};S.speak(u);
       }catch(e){}
     },
     stop(){if(S)S.cancel();},
@@ -601,12 +604,14 @@ function drawDude(X,L,P,x,y,dir,sc){
 }
 
 function drawBubble(x,y,txt,c,a=1){
-  ctx.save();ctx.globalAlpha*=a;ctx.font=`20px ${FONT}`;
-  const w=ctx.measureText(txt).width+14,h=21,bx=x-w/2,by=y-h-9;
+  ctx.save();ctx.globalAlpha*=a;ctx.font=`24px ${FONT}`;
+  const w=ctx.measureText(txt).width+18,h=26,cam=game?game.camX:0;
+  const tx=x;x=clamp(x,cam+w/2+6,cam+BASE_W-w/2-6);y=Math.max(y,h+72);
+  const bx=x-w/2,by=y-h-9,tail=clamp(tx,bx+10,bx+w-10);
   ctx.fillStyle='#fff7fb';ctx.strokeStyle=c;ctx.lineWidth=2;
-  ctx.beginPath();ctx.moveTo(x-5,by+h-1);ctx.lineTo(x+1,by+h+8);ctx.lineTo(x+5,by+h-1);ctx.closePath();ctx.fill();ctx.stroke();
+  ctx.beginPath();ctx.moveTo(tail-6,by+h-1);ctx.lineTo(tail+1,by+h+9);ctx.lineTo(tail+6,by+h-1);ctx.closePath();ctx.fill();ctx.stroke();
   ctx.beginPath();ctx.roundRect(bx,by,w,h,7);ctx.fill();ctx.stroke();
-  ctx.fillStyle='#fff7fb';ctx.fillRect(x-4,by+h-3,8,3);
+  ctx.fillStyle='#fff7fb';ctx.fillRect(tail-5,by+h-3,10,3);
   ctx.fillStyle='#1a0a20';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(txt,x,by+h/2+1);
   ctx.restore();
 }
@@ -1477,17 +1482,26 @@ class Pickup{
 }
 
 // ─── ON-SCREEN CONTROLS (touch + mouse): side wings in landscape/PC, deck below in portrait ─
+// Each finger is "owned" by the control it first touched, so sliding off the arrow pad keeps steering.
 const FS_OK=!!(document.documentElement.requestFullscreen||document.documentElement.webkitRequestFullscreen);
 class Touch{
   constructor(g){
     this.g=g;this.s={};this.p={};this.touches={};this.used=false;
     this.layout();
     const start=(id,p)=>{
-      this.touches[id]=p;Voice.unlock();
+      Voice.unlock();
       const f=this.fsBtn,pb=this.pauseBtn;
-      if(FS_OK&&Math.hypot(p.x-f.x,p.y-f.y)<f.r*1.5){delete this.touches[id];toggleFull();return;}
-      if(Math.hypot(p.x-pb.x,p.y-pb.y)<pb.r*1.5){delete this.touches[id];if(g.state==='playing')g.pause();else if(g.state==='paused')g.resume();return;}
+      if(FS_OK&&Math.hypot(p.x-f.x,p.y-f.y)<f.r*1.5){toggleFull();return;}
+      if(Math.hypot(p.x-pb.x,p.y-pb.y)<pb.r*1.5){if(g.state==='playing')g.pause();else if(g.state==='paused')g.resume();return;}
+      let own=null;
+      if(this.padHit(p))own='pad';
+      else{let bd=1.45;for(const b of this.btns){const d=Math.hypot(p.x-b.x,p.y-b.y)/b.r;if(d<bd){bd=d;own=b.id;}}}
+      this.touches[id]={x:p.x,y:p.y,own};
       if(g.state!=='playing')g.tap({x:p.x-GX,y:p.y-GY});
+    };
+    const move=(id,p)=>{
+      const t=this.touches[id];if(!t)return;t.x=p.x;t.y=p.y;
+      if(t.own&&t.own!=='pad'){const b=this.btns.find(q=>q.id===t.own);if(b&&Math.hypot(p.x-b.x,p.y-b.y)>b.r*2.4)t.own=null;}
     };
     const th=e=>{
       e.preventDefault();this.used=true;Sfx.init();
@@ -1497,60 +1511,73 @@ class Touch{
         const p=this.toBase(t.clientX,t.clientY);
         if(e.type==='touchend'||e.type==='touchcancel')delete this.touches[t.identifier];
         else if(e.type==='touchstart')start(t.identifier,p);
-        else if(this.touches[t.identifier])this.touches[t.identifier]=p;
+        else move(t.identifier,p);
       }
       this.rebuild();
     };
     ['touchstart','touchmove','touchend','touchcancel'].forEach(n=>canvas.addEventListener(n,th,{passive:false}));
     canvas.addEventListener('mousedown',e=>{Sfx.init();start('m',this.toBase(e.clientX,e.clientY));this.rebuild();});
-    addEventListener('mousemove',e=>{if(this.touches.m){this.touches.m=this.toBase(e.clientX,e.clientY);this.rebuild();}});
+    addEventListener('mousemove',e=>{if(this.touches.m){move('m',this.toBase(e.clientX,e.clientY));this.rebuild();}});
     addEventListener('mouseup',()=>{if(this.touches.m){delete this.touches.m;this.rebuild();}});
     document.addEventListener('touchmove',e=>e.preventDefault(),{passive:false});
     document.addEventListener('gesturestart',e=>e.preventDefault());
   }
   layout(){
     if(LAND){
-      const rb=Math.min(GX*0.2,26),top=14+2*rb+14,bot=VH-14,cx=TW-GX/2;
-      const s=Math.round(Math.min(GX*0.31,(bot-top)/4,95));
-      this.dpad={x:GX/2,y:bot-s*1.75-6,s};
-      const rj=Math.min(GX*0.4,(bot-top)*0.2),rk=Math.min(GX*0.215,rj*0.75),rw=rk*0.8;
-      const jy=bot-rj-4,ky=jy-rj-12-rk,wy=ky-rk-12-rw;
-      this.btns=[
-        {id:'jump',x:cx,         y:jy,r:rj,label:'JUMP',key:'SPACE',c:'#00f3ff'},
-        {id:'kick',x:cx-GX*0.25,y:ky,r:rk,label:'KICK',key:'J',    c:'#ff007f'},
-        {id:'atk', x:cx+GX*0.25,y:ky,r:rk,label:'ATK', key:'L',    c:'#bd00ff'},
-        {id:'wpn', x:cx,         y:wy,r:rw,label:'WPN', key:'K',    c:'#ffcc00'},
-      ];
+      const rb=Math.min(GX*0.2,26),cx=TW-GX/2,topFree=14+2*rb+14,bot=VH-12;
       this.fsBtn={x:GX/2,y:14+rb,r:rb};this.pauseBtn={x:cx,y:14+rb,r:rb};
+      // tall arrow pad filling the lower left wing:  [ ▲ ] / [◀][▶] / [ ▼ ]
+      let pw=Math.min(GX*0.92,230);const gap=6;
+      const maxH=bot-topFree-30;if(pw*1.83+2*gap>maxH)pw=(maxH-2*gap)/1.83;
+      const hU=pw*0.55,hM=pw*0.78,hD=pw*0.5,y0=bot-(hU+hM+hD+2*gap),px=GX/2;
+      this.pad={kind:'tall',x:px,w:pw,y0,y1:bot,upEnd:y0+hU+gap/2,downStart:bot-hD-gap/2,
+        keys:{up:{x:px-pw*0.4,y:y0,w:pw*0.8,h:hU},left:{x:px-pw/2,y:y0+hU+gap,w:pw/2-gap/2,h:hM},
+              right:{x:px+gap/2,y:y0+hU+gap,w:pw/2-gap/2,h:hM},down:{x:px-pw*0.4,y:bot-hD,w:pw*0.8,h:hD}}};
+      // buttons: big JUMP at the bottom, then KICK / ATK zig-zag, WPN on top
+      const rj=Math.min(GX*0.44,72);
+      const rk=Math.max(12,Math.min(GX*0.3,(bot-2*rj-8-topFree-10)/5.3)),jy=bot-rj;
+      const ky=jy-rj-8-rk,ay=ky-rk*1.85,wy=ay-rk*1.65;
+      this.btns=[
+        {id:'jump',x:cx,         y:jy,r:rj,     label:'JUMP',key:'SPACE',c:'#00f3ff'},
+        {id:'kick',x:cx-GX*0.17, y:ky,r:rk,     label:'KICK',key:'J',    c:'#ff007f'},
+        {id:'atk', x:cx+GX*0.17, y:ay,r:rk,     label:'ATK', key:'L',    c:'#bd00ff'},
+        {id:'wpn', x:cx-GX*0.14, y:wy,r:rk*0.82,label:'WPN', key:'K',    c:'#ffcc00'},
+      ];
       return;
     }
     const by=BASE_H+PANEL-24,avail=PANEL-40;
-    const s=Math.round(Math.min(108,avail/3.9,TW*0.12));
-    this.dpad={x:26+s*1.55,y:by-s*1.8,s};
-    const rj=Math.min(84,avail*0.24),rk=rj*0.78,jx=TW-30-rj,jy=by-rj,kx=jx-rj-22-rk,ty=jy-rj-20-rk;
+    const s=Math.round(Math.min(112,avail/3.8,TW*0.125));
+    this.pad={kind:'cross',x:26+s*1.55,y:by-s*1.8,s};
+    const rj=Math.min(88,avail*0.25),rk=rj*0.78,jx=TW-30-rj,jy=by-rj,kx=jx-rj-22-rk,ty=jy-rj-20-rk;
     this.btns=[
-      {id:'jump',x:jx,y:jy,r:rj,     label:'JUMP',key:'SPACE',c:'#00f3ff'},
-      {id:'kick',x:kx,y:jy+rj*0.12,r:rk,label:'KICK',key:'J',c:'#ff007f'},
-      {id:'atk', x:jx,y:ty,r:rk,     label:'ATK', key:'L',    c:'#bd00ff'},
-      {id:'wpn', x:kx,y:ty+rj*0.12,r:rk*0.85,label:'WPN',key:'K',c:'#ffcc00'},
+      {id:'jump',x:jx,y:jy,r:rj,             label:'JUMP',key:'SPACE',c:'#00f3ff'},
+      {id:'kick',x:kx,y:jy+rj*0.12,r:rk,     label:'KICK',key:'J',    c:'#ff007f'},
+      {id:'atk', x:jx,y:ty,r:rk,             label:'ATK', key:'L',    c:'#bd00ff'},
+      {id:'wpn', x:kx,y:ty+rj*0.12,r:rk*0.85,label:'WPN', key:'K',    c:'#ffcc00'},
     ];
     this.fsBtn={x:TW/2-140,y:BASE_H+44,r:20};this.pauseBtn={x:TW/2+140,y:BASE_H+44,r:20};
   }
   toBase(x,y){const r=canvas.getBoundingClientRect();return{x:(x-r.left)*TW/r.width,y:(y-r.top)*VH/r.height};}
-  rebuild(){
-    const prev=this.s,s={},D=this.dpad,half=D.s*0.42;
-    for(const p of Object.values(this.touches)){
-      const dx=p.x-D.x,dy=p.y-D.y;
-      const inPad=LAND?(p.x<GX&&p.y>this.fsBtn.y+this.fsBtn.r+8):(p.y>BASE_H+60&&p.x<TW*0.45&&Math.abs(dx)<D.s*2.4&&Math.abs(dy)<D.s*2.4);
-      if(inPad){
-        if(dx<-half)s.left=true;if(dx>half)s.right=true;
-        if(dy<-half)s.up=true;if(dy>half)s.down=true;
-        continue;
-      }
-      let best=null,bd=1e9;
-      for(const b of this.btns){const d=Math.hypot(p.x-b.x,p.y-b.y)/b.r;if(d<1.45&&d<bd){bd=d;best=b;}}
-      if(best)s[best.id]=true;
+  padHit(p){
+    const P=this.pad;
+    if(P.kind==='tall')return p.x<GX+P.w*0.15&&p.y>P.y0-30&&p.y<VH;
+    return p.y>BASE_H+60&&p.x<TW*0.45&&Math.abs(p.x-P.x)<P.s*2.4&&Math.abs(p.y-P.y)<P.s*2.4;
+  }
+  padDir(p,s){
+    const P=this.pad;
+    if(P.kind==='tall'){
+      const dx=p.x-P.x,up=p.y<P.upEnd,down=p.y>P.downStart,thr=(up||down)?P.w*0.26:P.w*0.05;
+      if(up)s.up=true;if(down)s.down=true;
+      if(dx<-thr)s.left=true;if(dx>thr)s.right=true;
+      return;
     }
+    const dx=p.x-P.x,dy=p.y-P.y,half=P.s*0.42;
+    if(dx<-half)s.left=true;if(dx>half)s.right=true;
+    if(dy<-half)s.up=true;if(dy>half)s.down=true;
+  }
+  rebuild(){
+    const prev=this.s,s={};
+    for(const t of Object.values(this.touches)){if(t.own==='pad')this.padDir(t,s);else if(t.own)s[t.own]=true;}
     for(const k in s)if(s[k]&&!prev[k])this.p[k]=true;
     this.s=s;
   }
@@ -1563,35 +1590,47 @@ class Touch{
     else{ctx.fillRect(b.x-r*0.75,b.y-r,r*0.55,r*2);ctx.fillRect(b.x+r*0.2,b.y-r,r*0.55,r*2);}
     ctx.restore();
   }
+  drawKey(rx,ry,rw,rh,on,ang,label){
+    const g=ctx.createLinearGradient(0,ry,0,ry+rh);
+    g.addColorStop(0,on?'#ff4fa8':'#3a3450');g.addColorStop(1,on?'#b0005a':'#1a1626');
+    ctx.fillStyle=g;ctx.shadowBlur=on?18:0;ctx.shadowColor='#ff007f';
+    const rr=Math.min(rw,rh)*0.18;
+    ctx.beginPath();ctx.roundRect(rx,ry,rw,rh,rr);ctx.fill();ctx.shadowBlur=0;
+    ctx.strokeStyle=on?'#ffffff':'rgba(255,255,255,0.4)';ctx.lineWidth=2;ctx.stroke();
+    ctx.fillStyle='rgba(255,255,255,0.12)';ctx.fillRect(rx+rr*0.6,ry+3,rw-rr*1.2,Math.max(3,rh*0.1));
+    const cx=rx+rw/2,cy=ry+rh/2-(label?rh*0.1:0),a=Math.min(rw,rh)*0.26;
+    ctx.save();ctx.translate(cx,cy);ctx.rotate(ang);
+    ctx.fillStyle=on?'#ffffff':'#ff7ac0';ctx.beginPath();ctx.moveTo(a,0);ctx.lineTo(-a*0.6,-a*0.95);ctx.lineTo(-a*0.6,a*0.95);ctx.closePath();ctx.fill();
+    ctx.restore();
+    if(label){ctx.fillStyle='rgba(255,255,255,0.65)';ctx.font=`${Math.max(10,Math.round(rh*0.2))}px ${FONT}`;ctx.fillText(label,cx,ry+rh*0.8);}
+  }
   draw(){
-    const D=this.dpad,S=D.s,r=S*0.18;
     if(FS_OK)this.drawSmallBtn(this.fsBtn,'fs');
     this.drawSmallBtn(this.pauseBtn,'pause');
     ctx.save();ctx.textAlign='center';ctx.textBaseline='middle';
-    ctx.fillStyle='rgba(0,0,0,0.55)';ctx.strokeStyle='rgba(255,255,255,0.18)';ctx.lineWidth=2;
-    ctx.beginPath();ctx.roundRect(D.x-S*1.55,D.y-S*0.55,S*3.1,S*1.1,r*1.4);ctx.roundRect(D.x-S*0.55,D.y-S*1.55,S*1.1,S*3.1,r*1.4);ctx.fill();
-    ctx.fillStyle='#120a1c';ctx.beginPath();ctx.arc(D.x,D.y,S*0.32,0,TAU);ctx.fill();
-    for(const[k,dx,dy]of[['left',-1,0],['right',1,0],['up',0,-1],['down',0,1]]){
-      const on=this.s[k],cx=D.x+dx*S*0.98,cy=D.y+dy*S*0.98;
-      const g=ctx.createLinearGradient(0,cy-S/2,0,cy+S/2);
-      g.addColorStop(0,on?'#ff4fa8':'#3a3450');g.addColorStop(1,on?'#b0005a':'#1a1626');
-      ctx.fillStyle=g;ctx.shadowBlur=on?18:0;ctx.shadowColor='#ff007f';
-      ctx.beginPath();ctx.roundRect(cx-S*0.46,cy-S*0.46,S*0.92,S*0.92,r);ctx.fill();ctx.shadowBlur=0;
-      ctx.strokeStyle=on?'#ffffff':'rgba(255,255,255,0.35)';ctx.lineWidth=2;ctx.stroke();
-      ctx.fillStyle='rgba(255,255,255,0.12)';ctx.fillRect(cx-S*0.4,cy-S*0.4,S*0.8,S*0.12);
-      ctx.save();ctx.translate(cx,cy);ctx.rotate(Math.atan2(dy,dx));
-      ctx.fillStyle=on?'#ffffff':'#ff7ac0';ctx.beginPath();ctx.moveTo(S*0.22,0);ctx.lineTo(-S*0.13,-S*0.22);ctx.lineTo(-S*0.13,S*0.22);ctx.closePath();ctx.fill();
-      ctx.restore();
+    const P=this.pad;
+    if(P.kind==='tall'){
+      const K=P.keys;
+      ctx.fillStyle='rgba(0,0,0,0.45)';ctx.beginPath();ctx.roundRect(P.x-P.w/2-5,P.y0-5,P.w+10,P.y1-P.y0+10,14);ctx.fill();
+      this.drawKey(K.up.x,K.up.y,K.up.w,K.up.h,this.s.up,-Math.PI/2,'JUMP / CLIMB');
+      this.drawKey(K.left.x,K.left.y,K.left.w,K.left.h,this.s.left,Math.PI,'');
+      this.drawKey(K.right.x,K.right.y,K.right.w,K.right.h,this.s.right,0,'');
+      this.drawKey(K.down.x,K.down.y,K.down.w,K.down.h,this.s.down,Math.PI/2,'DOWN');
+    }else{
+      const S=P.s,r=S*0.18;
+      ctx.fillStyle='rgba(0,0,0,0.55)';ctx.strokeStyle='rgba(255,255,255,0.18)';ctx.lineWidth=2;
+      ctx.beginPath();ctx.roundRect(P.x-S*1.55,P.y-S*0.55,S*3.1,S*1.1,r*1.4);ctx.roundRect(P.x-S*0.55,P.y-S*1.55,S*1.1,S*3.1,r*1.4);ctx.fill();
+      for(const[k,dx,dy]of[['left',-1,0],['right',1,0],['up',0,-1],['down',0,1]])
+        this.drawKey(P.x+dx*S*0.98-S*0.46,P.y+dy*S*0.98-S*0.46,S*0.92,S*0.92,this.s[k],Math.atan2(dy,dx),'');
+      ctx.font=`${Math.max(11,Math.round(S*0.2))}px ${FONT}`;ctx.fillStyle='rgba(255,255,255,0.5)';
+      if(P.y-S*1.75>BASE_H+26)ctx.fillText('▲ = JUMP / CLIMB',P.x,P.y-S*1.75);
+      ctx.fillText('▼+JUMP = DROP',P.x,P.y+S*1.75);
     }
-    const fs=Math.min(Math.max(11,Math.round(S*0.2)),LAND?Math.floor(GX/8.5):99);
-    ctx.font=`${fs}px ${FONT}`;ctx.fillStyle='rgba(255,255,255,0.5)';
-    if(LAND||D.y-S*1.75>BASE_H+26)ctx.fillText('▲ = CLIMB / JUMP',D.x,D.y-S*1.75);
-    ctx.fillText(IS_TOUCH?'▼+JUMP = DROP':'ARROW KEYS',D.x,D.y+S*1.75);
     for(const b of this.btns){
       const on=this.s[b.id];
       ctx.beginPath();ctx.arc(b.x,b.y,b.r,0,TAU);
       ctx.fillStyle=on?b.c:'rgba(10,0,20,0.6)';ctx.globalAlpha=on?0.55:1;ctx.fill();ctx.globalAlpha=1;
-      ctx.strokeStyle=on?b.c:'rgba(255,255,255,0.4)';ctx.lineWidth=2.5;ctx.shadowBlur=on?18:6;ctx.shadowColor=b.c;ctx.stroke();ctx.shadowBlur=0;
+      ctx.strokeStyle=on?b.c:'rgba(255,255,255,0.45)';ctx.lineWidth=2.5;ctx.shadowBlur=on?18:6;ctx.shadowColor=b.c;ctx.stroke();ctx.shadowBlur=0;
       ctx.fillStyle=on?'#fff':b.c;ctx.font=`bold ${Math.round(b.r*0.62)}px ${FONT}`;ctx.fillText(b.label,b.x,b.y+1);
       if(!IS_TOUCH){ctx.font=`${Math.max(10,Math.round(b.r*0.42))}px ${FONT}`;ctx.fillStyle='rgba(255,255,255,0.55)';ctx.fillText(b.key,b.x,b.y+b.r*0.62);}
     }
@@ -1913,7 +1952,7 @@ class Game{
       ['#ff2a6d','#05d9e8','#ffd319'].forEach((c,i)=>{ctx.fillStyle=c;ctx.fillRect(side?x0+2+i*4:x0+GX-4-i*4,0,2,VH);});
       if(GX<90)continue;
       let R=Math.min(GX*0.4,200),sy=VH/2;
-      if(LAND){const T=this.tc,lim=side?Math.min(...T.btns.map(b=>b.y-b.r)):T.dpad.y-T.dpad.s*2,top=T.fsBtn.y+T.fsBtn.r+10,sp=lim-top-10;if(sp<70)continue;R=Math.min(GX*0.34,sp/2);sy=top+sp/2;}
+      if(LAND){const T=this.tc,lim=side?Math.min(...T.btns.map(b=>b.y-b.r)):(T.pad.kind==='tall'?T.pad.y0-12:T.pad.y-T.pad.s*2),top=T.fsBtn.y+T.fsBtn.r+10,sp=lim-top-10;if(sp<70)continue;R=Math.min(GX*0.34,sp/2);sy=top+sp/2;}
       if(!LAND){ctx.fillStyle='#1a1626';ctx.strokeStyle='#3a3450';ctx.lineWidth=3;ctx.beginPath();ctx.roundRect(sx-GX*0.44,16,GX*0.84,VH-32,24);ctx.fill();ctx.stroke();}
       const rr=R*(1+0.025*bt);
       ctx.fillStyle='#0b0910';ctx.beginPath();ctx.arc(sx,sy,rr,0,TAU);ctx.fill();
@@ -1935,7 +1974,7 @@ class Game{
     ctx.font=`26px ${LOGO}`;ctx.fillStyle='#ff4fd8';ctx.shadowBlur=14;ctx.shadowColor='#ff4fd8';ctx.fillText('FLY GIRL',TW/2,y0+40);ctx.shadowBlur=0;
     ctx.font=`16px ${FONT}`;ctx.fillStyle='#05d9e8';ctx.fillText('HI-FI STEREO · 1986',TW/2,y0+64);
     if(IS_TOUCH&&PANEL>320){ctx.fillStyle='#ffd319';ctx.fillText('↻ Turn your phone sideways for the big screen',TW/2,y0+88);}
-    const D=this.tc.dpad;let ch=0,cy=0;const cx=TW/2;
+    const D=this.tc.pad;let ch=0,cy=0;const cx=TW/2;
     if(GX){ch=Math.min(200,PANEL*0.5);cy=y0+PANEL/2+24;}
     else{const top=y0+90,sp=D.y-D.s*1.85-20-top;if(sp>170){ch=Math.min(220,sp-20);cy=top+sp/2;}}
     if(ch){
