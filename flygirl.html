@@ -55,12 +55,19 @@ function fit(){
   canvas.style.width=Math.round(TW*s)+'px';canvas.style.height=Math.round(TH*s)+'px';
   if(game)game.tc.layout();
 }
+let fsFails=0;
+function lockLandscape(){try{const o=screen.orientation;if(o&&o.lock&&innerWidth>innerHeight)o.lock('landscape').catch(()=>{});}catch(e){}}
 function toggleFull(onlyEnter){
   const d=document.documentElement,fe=document.fullscreenElement||document.webkitFullscreenElement;
   try{
     if(fe){if(!onlyEnter)(document.exitFullscreen||document.webkitExitFullscreen).call(document);}
-    else{const f=d.requestFullscreen||d.webkitRequestFullscreen;if(f){const r=f.call(d,{navigationUI:'hide'});if(r&&r.catch)r.catch(()=>{if(!onlyEnter&&game)game.banner={a:'FULL SCREEN BLOCKED',b:'Open the game in its own browser tab',t:2.6,c:'#ffcc00'};});}}
-  }catch(e){}
+    else{
+      const f=d.requestFullscreen||d.webkitRequestFullscreen;if(!f)return;
+      const r=f.call(d,{navigationUI:'hide'});
+      if(r&&r.then)r.then(()=>{fsFails=0;lockLandscape();},()=>{fsFails++;if(!onlyEnter&&game)game.banner={a:'FULL SCREEN BLOCKED',b:'Open the game in its own browser tab',t:2.6,c:'#ffcc00'};});
+      else lockLandscape();
+    }
+  }catch(e){fsFails++;}
 }
 ['fullscreenchange','webkitfullscreenchange'].forEach(n=>document.addEventListener(n,()=>setTimeout(fit,120)));
 const FONT='"VT323","Courier New",monospace';
@@ -172,6 +179,7 @@ const Sfx=(()=>{
     shoot(){tone(1200,'square',0.08,0.04,0,400);},
     laser(){tone(1500,'sawtooth',0.4,0.07,0,200);},
     glass(){tone(2400,'triangle',0.12,0.07,0,1800);noise(0.08,0.12,0,5000);},
+    whistle(){if(!ac)return;const t=ac.currentTime;tone(1100,'sine',0.22,0.07,t,2300);tone(1500,'sine',0.38,0.07,t+0.26,650);},
     drink(){if(!ac)return;tone(660,'sine',0.08,0.12);tone(990,'sine',0.12,0.1,ac.currentTime+0.07);},
     perk(){if(!ac)return;[523,659,784,1047].forEach((f,i)=>tone(f,'sine',0.22,0.16,ac.currentTime+i*0.09));},
     level(){if(!ac)return;[392,523,659,784].forEach((f,i)=>tone(f,'square',0.14,0.07,ac.currentTime+i*0.07));},
@@ -324,13 +332,14 @@ function shade(hex,k){
 }
 const SKINS=['#f6d0b1','#eab48f','#d39a6f','#b57a4f','#8d5a36','#64402a'];
 const HAIRS=['#16100c','#3a2414','#5e3a1c','#8b5a2b','#c58f4a','#e2c27a','#9a2f12'];
-const LINES_FLIRT=["Hey baby!","Nice leg warmers!","Wanna dance?","Come here often?","Buy you a drink?","What's your sign?","Gimme your number!","Whoa, totally rad!","Let's boogie, babe!","Hey, Fly Girl!","Party at my place!","Nice moves, babe!","Like my mullet?","I'm kind of a big deal","Smile, sweetheart!","Is it hot in here?","Nice headband, babe!","Wanna see my Walkman?","My Trans Am is parked outside!","I've got Duran Duran tickets!","You dance like a music video!","Hey, Material Girl!","Let's get physical, babe!","Wanna hear my mixtape?","Slow dance to Air Supply?","I'm totally Top Gun material!","My dad owns a Delorean!","Wanna split a wine cooler?","You make my jacket sweat!","Where you been all my life?"];
+const LINES_FLIRT=["Hey baby!","Ooh mama, look at you!","Hey hot stuff!","Your place or mine, baby?","Wanna see my waterbed?","Did it hurt when you fell from heaven?","Hey sugar, buy you a drink?","Come to papa!","Mmm, foxy lady!","Is this seat taken? Now it is!","You got FINE written all over you!","I've got a hot tub in my van!","You and me, back seat of my Camaro?","Wanna come up and see my etchings?","Hey legs, where you been all night?","I'm not drunk, I'm in love!","They call me The Stallion, baby!","What's your sign, sugar?","Lose the friends, babe. I'm all you need!","I've been watching you all night...","Got a boyfriend? Doesn't matter!","Rowr! Purrr!","Smile, sweetheart!","Nice leg warmers, babe!","Let's get physical, baby!","Wanna see my Walkman?","My Trans Am is parked outside!","Hey, Fly Girl!","Ooh, come here, cupcake!","I'm kind of a big deal, babe"];
+const LINES_FOLLOW=["C'mon, don't be shy...","I don't bite. Much.","Just one little dance...","Play hard to get, I like that!","I know you want me, babe!","Don't walk away, sugar!","Let me buy you a wine cooler!","Ever been with a real man?","Daddy's got a credit card!","Wink wink, nudge nudge!","Let's go somewhere quieter...","Gimme your number, foxy!","You look lonely, baby!","I'll make it worth your while!"];
 const LINES_OUCH=["Ow!","Hey!","My drink!","Bogus!","Not cool!","Grody!","Harsh!","Okay, okay!","Not the hair!","My perm!","Gnarly kick!","Mom!!","That's bogus!","My jacket!"];
-const LINES_GIRL=["Back off!","Not interested!","Get lost!","In your dreams!","Gag me with a spoon!","As if!","Talk to the foot!","Grow up!","Take a hike!","Read my lips: NO!","Get a clue!","Beat it!","Not in a million years!","Take your mullet and go!","Hasta la vista, creep!","Next!"];
+const LINES_GIRL=["Back off!","Ew. Just ew.","Not even in your dreams!","Gross! Get lost!","Keep walking, sleazeball!","Your van? Hard pass!","I'd rather kiss a cassette!","Not interested!","Get lost!","In your dreams!","Gag me with a spoon!","As if!","Talk to the foot!","Grow up!","Take a hike!","Read my lips: NO!","Get a clue!","Beat it!","Not in a million years!","Take your mullet and go!","Hasta la vista, creep!","Next!"];
 const LINES_GIRL_HURT=["Hands off!","Ew! Back off!","Don't touch me!","You'll regret that!","Watch it, creep!","Keep your hands to yourself!"];
 const LINES_THROW=["Catch, babe!","Drink up!","Cheers!","Have one on me!","Bottoms up!","Free drink!"];
 const LINES_THROW_HIT=["Ha! Drinks on you!","Oops, my bad, babe!","Cheers, sweetheart!","Nice catch!","Bullseye!"];
-const LINES_GRAB=["Just one dance!","C'mon, babe!","Don't be like that!","Where ya going?","You owe me a dance!","Dance with me!","Don't be shy!"];
+const LINES_GRAB=["Come here, sugar!","Gotcha, foxy!","Don't play hard to get!","Where you going, cupcake?","Just one dance!","C'mon, babe!","Don't be like that!","Where ya going?","You owe me a dance!","Dance with me!","Don't be shy!"];
 const LINES_MISS=["Whoa, slippery!","Hey, come back!","Playing hard to get?","Aw, man!"];
 const LINES_KO=["I'll call you!","Worth it...","My Walkman!","Mom's gonna kill me...","I think I'm in love...","Totally bogus...","Note to self: no.","Tell my Camaro I love it...","Ow... my pride...","Rejected... again."];
 const LINES_IDLE=["Where's the party?","This DJ is rad!","Anyone seen my comb?","Another round!","Is that Bon Jovi?","Tubular!","Who wants to see my moonwalk?","I'm the life of the party!","Totally wasted...","Check out my moves!"];
@@ -350,25 +359,38 @@ const BOSS_REPLY=["Then I'll make my own list!","Your beat is weak!","Stop follo
 const BOSS_TAUNT=[["Out of my club!","Nobody gets past me!"],["Feel the bass, babe!","Scratch that!"],["Boo!","Over here..."],["Look up, babe!","Lasers, baby!"],["Blocked!","Extra life? Nope!"],["Gotta go fast!","Catch me if you can!"],["Party foul!","Get slimed!"],["Time is money, babe!","You're fired!"],["Wrong one, babe!","Try again!"],["Kneel!","I am the night!"]];
 const BOSS_DEFEAT=["Okay... you're on the list.","My records... scratched...","I'll be watching...","Mayday, mayday!","GAME... OVER...","Too... fast...","Party's... over...","Call my lawyer!","Shattered...","No! My crown!"];
 // Spoken lines via the browser's speech synthesizer (guys get low voices, Fly Girl a high one).
+// Spoken lines via the browser's speech synthesizer: guys always get a male (or pitched-down) voice,
+// Fly Girl a female one. Voice names differ per OS, so known iOS/macOS/Android/Windows names are matched.
 const Voice=(()=>{
-  const S=window.speechSynthesis;let on=true,voices=[],male=[],female=[],unlocked=false;
+  const S=window.speechSynthesis;let on=true,voices=[],male=[],female=[],neutral=[],maleReal=false,unlocked=false;
+  const NOVELTY=/bad news|bells|boing|bubbles|cellos|whisper|zarvox|trinoids|wobble|jester|organ|superstar|good news|deranged|hysterical|bahh|albert/i;
+  const FEMALE=/female|samantha|victoria|karen|zira|susan|moira|tessa|fiona|allison|\bava\b|serena|kate|joanna|salli|kimberly|hazel|aria|jenny|sonia|libby|catherine|kathy|martha|nicky|shelley|\bflo\b|sandy|grandma|veena|\bivy\b|emma|\bamy\b|olivia|natasha|clara|michelle|heather|linda|helena|google us english|google uk english female|x-sfg|x-tpc|x-iob|x-iog|x-gba|x-gbc|x-gbg|x-afa|x-afc|x-ena/i;
+  const MALE=/\bmale\b|daniel|alex\b|fred|david|george|james|\btom\b|aaron|arthur|rishi|oliver|\bmark\b|\bguy\b|christopher|eric|roger|steffan|ryan|brian|matthew|joey|justin|russell|gordon|reed|rocko|eddy|ralph|bruce|junior|grandpa|\blee\b|liam|thomas|william|google uk english male|x-iol|x-iom|x-tpd|x-rjs|x-gbd|x-aub|x-aud|x-end|x-ene/i;
+  const id=v=>v.name+' '+v.voiceURI;
   function load(){
-    if(!S)return;voices=S.getVoices().filter(v=>/^en/i.test(v.lang));
-    female=voices.filter(v=>/female|samantha|victoria|karen|zira|susan|moira|tessa|fiona|allison|ava|serena|kate|joanna|salli|kimberly|google us english/i.test(v.name));
-    male=voices.filter(v=>!female.includes(v)&&/male|daniel|alex|fred|david|george|james|tom|aaron|arthur|rishi|oliver|mark|guy|google uk english male/i.test(v.name));
+    if(!S)return;
+    voices=S.getVoices().filter(v=>/^en/i.test(v.lang)&&!NOVELTY.test(v.name));
+    female=voices.filter(v=>FEMALE.test(id(v)));
+    male=voices.filter(v=>!FEMALE.test(id(v))&&MALE.test(id(v)));
+    neutral=voices.filter(v=>!FEMALE.test(id(v)));
+    maleReal=male.length>0;
   }
   if(S){load();try{S.addEventListener('voiceschanged',load);}catch(e){S.onvoiceschanged=load;}}
   return{
-    unlock(){if(!S||unlocked)return;unlocked=true;try{const u=new SpeechSynthesisUtterance(' ');u.volume=0;S.speak(u);}catch(e){}},
+    unlock(){if(!S||unlocked)return;unlocked=true;load();try{const u=new SpeechSynthesisUtterance(' ');u.volume=0;S.speak(u);}catch(e){}},
     say(txt,who,o={}){
       if(!S||!on)return;
+      if(!voices.length)load();
       if(S.speaking||S.pending){if(!o.force)return;S.cancel();}
       try{
         const u=new SpeechSynthesisUtterance(txt.replace(/[♥.]{2,}|♥/g,' '));
-        const pool=who==='girl'?female:male;
-        if(pool.length)u.voice=pool[(o.seed||0)%pool.length];else if(voices.length)u.voice=voices[0];
-        u.pitch=who==='girl'?1.35:clamp(o.pitch==null?0.8:o.pitch,0.1,2);u.rate=o.rate||(who==='girl'?1.1:0.95);u.volume=1;
-        S.speak(u);
+        const p=o.pitch==null?0.8:o.pitch;
+        if(who==='girl'){const pool=female.length?female:voices;if(pool.length)u.voice=pool[(o.seed||0)%pool.length];u.pitch=female.length?1.25:1.6;u.rate=o.rate||1.1;}
+        else{
+          const pool=maleReal?male:(neutral.length?neutral:voices);if(pool.length)u.voice=pool[(o.seed||0)%pool.length];
+          u.pitch=maleReal?clamp(p,0.45,1.05):clamp(p*0.55,0.1,0.55);u.rate=o.rate||0.95;
+        }
+        u.volume=1;S.speak(u);
       }catch(e){}
     },
     stop(){if(S)S.cancel();},
@@ -1002,11 +1024,15 @@ class Enemy{
     }else{
       switch(this.st){
         case'walk':
-          if(near){this.dir=pcx<cx?-1:1;want=1;if(adx<175&&this.flirtCd<=0){this.st='flirt';this.stT=0;this.speak(LINES_FLIRT,1.5);g.hearts(this);}}
+          if(near){this.dir=pcx<cx?-1:1;want=1;if(adx<175&&this.flirtCd<=0){this.st='flirt';this.stT=0;this.followed=false;this.speak(LINES_FLIRT,1.6);g.hearts(this);if(Math.random()<0.5)Sfx.whistle();}}
           else{want=0.6;if(g.chatT<=0&&Math.random()<dt*0.3){g.chatT=4.5;this.speak(LINES_IDLE,1.7);}if(adx<1100&&Math.random()<dt*0.9)this.dir=pcx<cx?-1:1;if(Math.random()<dt*0.12){this.st='sip';this.stT=0;}}
           break;
         case'sip':if(this.stT>1.1||near)this.st='walk';break;
-        case'flirt':this.dir=pcx<cx?-1:1;want=0.3;if(this.stT>1){this.st='lunge';this.stT=0;}break;
+        case'flirt':
+          this.dir=pcx<cx?-1:1;want=0.25;
+          if(this.stT>1.15&&!this.followed){this.followed=true;this.speak(LINES_FOLLOW,1.5);g.hearts(this);}
+          if(this.stT>2.2){this.st='lunge';this.stT=0;}
+          break;
         case'lunge':
           this.dir=pcx<cx?-1:1;want=1.9;
           if(adx<this.w/2+p.w/2+16&&sameLvl){this.st='grab';this.stT=0;this.grabbed=false;}
@@ -1465,7 +1491,8 @@ class Touch{
     };
     const th=e=>{
       e.preventDefault();this.used=true;Sfx.init();
-      if(e.type==='touchstart'&&!this.fsTried){this.fsTried=true;toggleFull(true);}
+      // sideways phone: keep asking for real fullscreen on touches until the browser grants it (or refuses twice)
+      if(e.type==='touchstart'&&FS_OK&&fsFails<2&&!(document.fullscreenElement||document.webkitFullscreenElement)&&(innerWidth>innerHeight||!this.fsTried)){this.fsTried=true;toggleFull(true);}
       for(const t of e.changedTouches){
         const p=this.toBase(t.clientX,t.clientY);
         if(e.type==='touchend'||e.type==='touchcancel')delete this.touches[t.identifier];
