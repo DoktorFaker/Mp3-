@@ -55,16 +55,16 @@ function fit(){
   canvas.style.width=Math.round(TW*s)+'px';canvas.style.height=Math.round(TH*s)+'px';
   if(game)game.tc.layout();
 }
-let fsFails=0;
+let fsFails=0,fsPending=false;
 function lockLandscape(){try{const o=screen.orientation;if(o&&o.lock&&innerWidth>innerHeight)o.lock('landscape').catch(()=>{});}catch(e){}}
 function toggleFull(onlyEnter){
   const d=document.documentElement,fe=document.fullscreenElement||document.webkitFullscreenElement;
   try{
     if(fe){if(!onlyEnter)(document.exitFullscreen||document.webkitExitFullscreen).call(document);}
     else{
-      const f=d.requestFullscreen||d.webkitRequestFullscreen;if(!f)return;
+      const f=d.requestFullscreen||d.webkitRequestFullscreen;if(!f||fsPending)return;
       const r=f.call(d,{navigationUI:'hide'});
-      if(r&&r.then)r.then(()=>{fsFails=0;lockLandscape();},()=>{fsFails++;if(!onlyEnter&&game)game.banner={a:'FULL SCREEN BLOCKED',b:'Open the game in its own browser tab',t:2.6,c:'#ffcc00'};});
+      if(r&&r.then){fsPending=true;r.then(()=>{fsPending=false;fsFails=0;lockLandscape();},()=>{fsPending=false;fsFails++;if(!onlyEnter&&game)game.banner={a:'FULL SCREEN BLOCKED',b:'This view blocks it - open the game in Chrome or Safari',t:3.5,c:'#ffcc00'};});}
       else lockLandscape();
     }
   }catch(e){fsFails++;}
@@ -627,7 +627,7 @@ function drawDude(X,L,P,x,y,dir,sc){
 
 function drawBubble(x,y,txt,c,a=1){
   ctx.save();ctx.globalAlpha*=a;ctx.font=`24px ${FONT}`;
-  const w=ctx.measureText(txt).width+18,h=26,cam=game?game.camX:0;
+  const w=ctx.measureText(txt).width+18,h=26,cam=game&&game.state!=='title'?game.camX:0;
   const tx=x;x=clamp(x,cam+w/2+6,cam+BASE_W-w/2-6);y=Math.max(y,h+72);
   const bx=x-w/2,by=y-h-9,tail=clamp(tx,bx+10,bx+w-10);
   ctx.fillStyle='#fff7fb';ctx.strokeStyle=c;ctx.lineWidth=2;
@@ -1535,7 +1535,7 @@ class Touch{
     const start=(id,p)=>{
       Voice.unlock();
       const f=this.fsBtn,pb=this.pauseBtn;
-      if(FS_OK&&Math.hypot(p.x-f.x,p.y-f.y)<f.r*1.5){toggleFull();return;}
+      if(Math.abs(p.x-f.x)<f.w/2+8&&Math.abs(p.y-f.y)<f.r+8){if(FS_OK)toggleFull();else g.fsHelp();return;}
       if(Math.hypot(p.x-pb.x,p.y-pb.y)<pb.r*1.5){if(g.state==='playing')g.pause();else if(g.state==='paused')g.resume();return;}
       let own=null;
       if(this.padHit(p))own='pad';
@@ -1569,7 +1569,7 @@ class Touch{
   layout(){
     if(LAND){
       const rb=Math.min(GX*0.2,26),cx=TW-GX/2,topFree=14+2*rb+14,bot=VH-12;
-      this.fsBtn={x:GX/2,y:14+rb,r:rb};this.pauseBtn={x:cx,y:14+rb,r:rb};
+      this.fsBtn={x:GX/2,y:14+rb,r:rb,w:Math.min(GX*0.88,210)};this.pauseBtn={x:cx,y:14+rb,r:rb};
       // tall arrow pad filling the lower left wing:  [ ▲ ] / [◀][▶] / [ ▼ ]
       let pw=Math.min(GX*0.92,230);const gap=6;
       const maxH=bot-topFree-30;if(pw*1.83+2*gap>maxH)pw=(maxH-2*gap)/1.83;
@@ -1599,7 +1599,7 @@ class Touch{
       {id:'atk', x:jx,y:ty,r:rk,             label:'ATK', key:'L',    c:'#bd00ff'},
       {id:'wpn', x:kx,y:ty+rj*0.12,r:rk*0.85,label:'WPN', key:'K',    c:'#ffcc00'},
     ];
-    this.fsBtn={x:TW/2-140,y:BASE_H+44,r:20};this.pauseBtn={x:TW/2+140,y:BASE_H+44,r:20};
+    this.fsBtn={x:TW/2-235,y:BASE_H+56,r:30,w:200};this.pauseBtn={x:TW/2+235,y:BASE_H+56,r:30};
   }
   toBase(x,y){const r=canvas.getBoundingClientRect();return{x:(x-r.left)*TW/r.width,y:(y-r.top)*VH/r.height};}
   padHit(p){
@@ -1625,6 +1625,18 @@ class Touch{
     for(const k in s)if(s[k]&&!prev[k])this.p[k]=true;
     this.s=s;
   }
+  drawFsBtn(){
+    const b=this.fsBtn,full=!!(document.fullscreenElement||document.webkitFullscreenElement),x0=b.x-b.w/2,y0=b.y-b.r,h=b.r*2;
+    ctx.save();
+    ctx.fillStyle=full?'rgba(10,0,20,0.7)':'rgba(0,243,255,0.18)';ctx.strokeStyle=full?'rgba(255,255,255,0.45)':'#00f3ff';ctx.lineWidth=2;
+    ctx.shadowBlur=full?0:10;ctx.shadowColor='#00f3ff';ctx.beginPath();ctx.roundRect(x0,y0,b.w,h,h/2);ctx.fill();ctx.stroke();ctx.shadowBlur=0;
+    const ix=x0+h*0.62,r=h*0.2;ctx.strokeStyle='#ffffff';ctx.lineWidth=Math.max(1.5,h*0.07);
+    for(const[sx,sy]of[[-1,-1],[1,-1],[-1,1],[1,1]]){const k=full?-1:1;ctx.beginPath();ctx.moveTo(ix+sx*r,b.y+sy*r*(1-0.6*k));ctx.lineTo(ix+sx*r,b.y+sy*r);ctx.lineTo(ix+sx*r*(1-0.6*k),b.y+sy*r);ctx.stroke();}
+    const fs=Math.min(h*0.56,(b.w-h*1.15)/5.1);
+    ctx.fillStyle='#ffffff';ctx.font=`bold ${Math.round(fs)}px ${FONT}`;ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText(full?'EXIT FULL':'FULL SCREEN',x0+h*1.05+(b.w-h*1.05)/2,b.y+1);
+    ctx.restore();
+  }
   drawSmallBtn(b,icon){
     ctx.save();ctx.fillStyle='rgba(10,0,20,0.7)';ctx.strokeStyle='rgba(255,255,255,0.45)';ctx.lineWidth=2;
     ctx.beginPath();ctx.arc(b.x,b.y,b.r,0,TAU);ctx.fill();ctx.stroke();
@@ -1649,7 +1661,7 @@ class Touch{
     if(label){ctx.fillStyle='rgba(255,255,255,0.65)';ctx.font=`${Math.max(10,Math.round(rh*0.2))}px ${FONT}`;ctx.fillText(label,cx,ry+rh*0.8);}
   }
   draw(){
-    if(FS_OK)this.drawSmallBtn(this.fsBtn,'fs');
+    this.drawFsBtn();
     this.drawSmallBtn(this.pauseBtn,'pause');
     ctx.save();ctx.textAlign='center';ctx.textBaseline='middle';
     const P=this.pad;
@@ -1834,9 +1846,13 @@ class Game{
     for(const e of this.enemies){
       if(e.type==='clone'||e.st==='thrown'||!(e.stun>0||e.legT>0))continue;
       const dx=(e.x+e.w/2)-(p.x+p.w/2);
-      if(Math.sign(dx)===p.dir&&Math.abs(dx)<56&&Math.abs((e.y+e.h)-(p.y+p.h))<30)return e;
+      if(Math.sign(dx)===p.dir&&Math.abs(dx)<78&&Math.abs((e.y+e.h)-(p.y+p.h))<30)return e;
     }
     return null;
+  }
+  fsHelp(){
+    const iOS=/iP(hone|od|ad)/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+    this.banner={a:'FULL SCREEN',b:iOS?'Safari: tap aA in the address bar → Hide Toolbar':'Open the game in Chrome for full screen',t:4,c:'#00f3ff'};
   }
   surfBelow(x,y){let best=BASE_H+200;for(const s of this.world.surfaces())if(x>=s.x&&x<=s.x+s.w&&s.y>=y-2&&s.y<best)best=s.y;return best;}
   groundAt(x){return this.world.ground.some(s=>x>=s.x&&x<=s.x+s.w);}
@@ -1978,7 +1994,7 @@ class Game{
   update(dt){
     this.t+=dt;this.stateT+=dt;
     if(this.state==='loading'){this.loadTick();return;}
-    if(this.state==='title'){this.camX+=dt*60;this.demo.t+=dt;this.demo.vx=200;this.demo.onGround=true;this.titleLine=Math.floor(this.t/2.2)%LINES_FLIRT.length;return;}
+    if(this.state==='title'){if(this.banner&&(this.banner.t-=dt)<=0)this.banner=null;this.camX+=dt*60;this.demo.t+=dt;this.demo.vx=200;this.demo.onGround=true;this.titleLine=Math.floor(this.t/2.2)%LINES_FLIRT.length;return;}
     if(this.state!=='playing')return;
     const inp=this.input(),p=this.player;
     if(this.hold)this.updateHold(dt,inp);
@@ -2304,7 +2320,7 @@ class Game{
     ctx.restore();
   }
   drawBanner(){
-    const b=this.banner,a=Math.min(1,b.t*2,(2.8-b.t)*3);
+    const b=this.banner;if(!b.T)b.T=b.t;const a=Math.min(1,b.t*2,(b.T-b.t)*4+0.2);
     ctx.save();ctx.globalAlpha=clamp(a,0,1);ctx.textAlign='center';ctx.textBaseline='middle';
     ctx.fillStyle='rgba(0,0,0,0.55)';ctx.fillRect(0,118,BASE_W,72);
     ctx.font=`bold 39px ${FONT}`;ctx.fillStyle=b.c;ctx.shadowBlur=24;ctx.shadowColor=b.c;ctx.fillText(b.a,BASE_W/2,142);
@@ -2397,6 +2413,7 @@ class Game{
     lines.forEach((l,i)=>ctx.fillText(l,395,276+i*19));
     ctx.restore();
     ctx.drawImage(Tex.scanlines(),0,0,BASE_W,BASE_H);
+    if(this.banner)this.drawBanner();
   }
 }
 
