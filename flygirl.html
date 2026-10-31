@@ -157,6 +157,8 @@ const OUTFIT_NAMES={cyberKimono:'CYBER-KIMONO',raveJacket:'RAVE JACKET',exoArmor
 const Sfx=(()=>{
   let ac=null,master=null,musicG=null,noiseBuf=null,timer=null,nextT=0,step=0,root=55,musicOn=true;
   function init(){
+    // iPhone: play music + voices even when the ring/silent switch is on (Safari 17+)
+    try{if(navigator.audioSession&&navigator.audioSession.type!=='playback')navigator.audioSession.type='playback';}catch(e){}
     if(!ac){
       try{
         ac=new(window.AudioContext||window.webkitAudioContext)();
@@ -467,6 +469,7 @@ const LINES_FLIRT=["Hey baby!","Ooh mama, look at you!","Hey hot stuff!","Your p
 const LINES_FOLLOW=["C'mon, don't be shy...","Lose the leg warmers, keep the attitude!","My waterbed has room for two...","Bring the whipped cream, I'll bring the van!","Let's get weird in the coat check!","I'll show you my moves in the back room!","Dance on the table for me, baby!","Sit on my face, sugar. Think about it!","My face is free all night, baby!","I've got room on my lap!","Come back to my van, foxy!","I don't bite. Much.","Just one little dance...","Play hard to get, I like that!","I know you want me, babe!","Don't walk away, sugar!","Let me buy you a wine cooler!","Ever been with a real man?","Daddy's got a credit card!","Wink wink, nudge nudge!","Let's go somewhere quieter...","Gimme your number, foxy!","You look lonely, baby!","I'll make it worth your while!"];
 const LINES_OUCH=["Ow!","Hey!","My drink!","Bogus!","Not cool!","Grody!","Harsh!","Okay, okay!","Not the hair!","My perm!","Gnarly kick!","Mom!!","That's bogus!","My jacket!"];
 const LINES_GIRL=["Back off!","Lap dance THIS!","The only body shot is my kick!","Fog up your van ALONE!","In your nightmares!","Ew! You're disgusting!","Sit on THIS kick!","Gross! Kick incoming!","Ew. Just ew.","Not even in your dreams!","Gross! Get lost!","Keep walking, sleazeball!","Your van? Hard pass!","I'd rather kiss a cassette!","Not interested!","Get lost!","In your dreams!","Gag me with a spoon!","As if!","Talk to the foot!","Grow up!","Take a hike!","Read my lips: NO!","Get a clue!","Beat it!","Not in a million years!","Take your mullet and go!","Hasta la vista, creep!","Next!"];
+const GIRL_REVIVE=["I'm not done yet!","Round two, creeps!","Is that all you got?","Still standing, boys!","Nice try. My turn!","You can't keep a Fly Girl down!"];
 const LINES_GIRL_HURT=["Hands off!","Ew! Back off!","Don't touch me!","You'll regret that!","Watch it, creep!","Keep your hands to yourself!"];
 const LINES_THROW=["Catch, babe!","Drink up!","Cheers!","Have one on me!","Bottoms up!","Free drink!"];
 const LINES_THROW_HIT=["Ha! Drinks on you!","Oops, my bad, babe!","Cheers, sweetheart!","Nice catch!","Bullseye!"];
@@ -514,7 +517,8 @@ const BOSS_DEFEAT=["Okay... you're on the list.","My records... scratched...","I
 // Spoken lines via the browser's speech synthesizer: guys always get a male (or pitched-down) voice,
 // Fly Girl a female one. Voice names differ per OS, so known iOS/macOS/Android/Windows names are matched.
 const Voice=(()=>{
-  const S=window.speechSynthesis;let on=true,voices=[],male=[],female=[],neutral=[],maleReal=false,unlocked=false,busyUntil=0;
+  const S=window.speechSynthesis;let on=true,voices=[],male=[],female=[],neutral=[],maleReal=false,ready=false,lastTry=0,tries=0,busyUntil=0,timer=0;
+  const keep=[]; // Safari/Chrome drop utterances that get garbage-collected mid-sentence, so hold references
   const NOVELTY=/bad news|bells|boing|bubbles|cellos|whisper|zarvox|trinoids|wobble|jester|organ|superstar|good news|deranged|hysterical|bahh|albert/i;
   const FEMALE=/female|samantha|victoria|karen|zira|susan|moira|tessa|fiona|allison|\bava\b|serena|kate|joanna|salli|kimberly|hazel|aria|jenny|sonia|libby|catherine|kathy|martha|nicky|shelley|\bflo\b|sandy|grandma|veena|\bivy\b|emma|\bamy\b|olivia|natasha|clara|michelle|heather|linda|helena|google us english|google uk english female|x-sfg|x-tpc|x-iob|x-iog|x-gba|x-gbc|x-gbg|x-afa|x-afc|x-ena/i;
   const MALE=/\bmale\b|daniel|alex\b|fred|david|george|james|\btom\b|aaron|arthur|rishi|oliver|\bmark\b|\bguy\b|christopher|eric|roger|steffan|ryan|brian|matthew|joey|justin|russell|gordon|reed|rocko|eddy|ralph|bruce|junior|grandpa|\blee\b|liam|thomas|william|google uk english male|x-iol|x-iom|x-tpd|x-rjs|x-gbd|x-aub|x-aud|x-end|x-ene/i;
@@ -529,30 +533,46 @@ const Voice=(()=>{
   }
   if(S){load();try{S.addEventListener('voiceschanged',load);}catch(e){S.onvoiceschanged=load;}}
   return{
-    unlock(){if(!S||unlocked)return;unlocked=true;load();try{S.cancel();const u=new SpeechSynthesisUtterance('hi');u.volume=0.01;u.rate=2;S.speak(u);}catch(e){}},
+    // iPhone/iPad only allow speech after a speak() call made directly inside a tap (touchend/click).
+    // Keep trying on every tap until one utterance has really started.
+    unlock(){
+      if(!S||ready||tries>=8)return;const now=performance.now();if(now-lastTry<700)return;lastTry=now;tries++;load();
+      try{if(S.paused)S.resume();const u=new SpeechSynthesisUtterance('hey');u.volume=0.05;u.rate=1.6;u.lang='en-US';
+        u.onstart=()=>{ready=true;};keep.push(u);if(keep.length>8)keep.shift();S.speak(u);}catch(e){}
+    },
     say(txt,who,o={}){
       if(!S||!on)return;
       if(!voices.length)load();
       const now=performance.now();
       if(S.paused)try{S.resume();}catch(e){}
-      if((S.speaking||S.pending)&&now<busyUntil){if(!o.force)return;S.cancel();}
-      else if(S.speaking||S.pending)S.cancel();
+      const busy=S.speaking||S.pending;
+      if(busy&&now<busyUntil&&!o.force)return;
       try{
         const u=new SpeechSynthesisUtterance(txt.replace(/[♥.]{2,}|♥/g,' '));
         const p=o.pitch==null?0.8:o.pitch;
         if(who==='girl'){const pool=female.length?female:voices;if(pool.length)u.voice=pool[(o.seed||0)%pool.length];u.pitch=female.length?1.25:1.6;u.rate=o.rate||1.1;}
         else{
           const pool=maleReal?male:(neutral.length?neutral:voices);if(pool.length)u.voice=pool[(o.seed||0)%pool.length];
-          u.pitch=maleReal?clamp(p,0.45,1.05):clamp(p*0.55,0.1,0.55);u.rate=o.rate||0.95;
+          u.pitch=maleReal?clamp(p,0.5,1.05):clamp(p*0.55+0.1,0.5,0.7);u.rate=o.rate||0.95;
         }
-        u.volume=1;busyUntil=now+400+txt.length*75/(u.rate||1);u.onend=u.onerror=()=>{busyUntil=0;};S.speak(u);Sfx.duck((busyUntil-now)/1000);
+        u.lang=u.voice?u.voice.lang:'en-US';u.volume=1;
+        busyUntil=now+400+txt.length*75/(u.rate||1);
+        u.onstart=()=>{ready=true;};u.onend=u.onerror=()=>{busyUntil=0;};
+        keep.push(u);if(keep.length>8)keep.shift();
+        clearTimeout(timer);
+        // WebKit (all iPhone browsers) silently drops a speak() issued in the same tick as cancel(): wait a moment.
+        if(busy){S.cancel();timer=setTimeout(()=>{try{S.speak(u);}catch(e){}},60);}else S.speak(u);
+        Sfx.duck((busyUntil-now)/1000);
       }catch(e){}
     },
     stop(){if(S)S.cancel();},
     toggle(){on=!on;if(!on&&S)S.cancel();return on;},
-    get on(){return on;},get ok(){return !!S;},
+    get on(){return on;},get ok(){return !!S;},get ready(){return ready;},
   };
 })();
+// Unlock speech on real "activation" gestures (iOS ignores touchstart for this); also recover after the tab was hidden.
+['touchend','click','pointerup','keydown'].forEach(n=>addEventListener(n,()=>Voice.unlock(),true));
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&window.speechSynthesis)try{speechSynthesis.cancel();}catch(e){}});
 const LIQ={beer:'#e8a33a',martini:'#d8f0e0',cocktail:'#ff4f9a',can:'#ff3030',whiskey:'#c87a1e',wine:'#a01438',bowl:'#5dff3a',vinyl:'#39ff14',none:'#ffffff'};
 const ARCH={
   mullet:{hair:['mullet'],top:'jacket',tops:['#3f6fb0','#2f5a90','#5a7fb8'],under:['#f2f2f2','#d33333','#222222'],pants:['#2b4c80','#34558a'],shoes:['#eeeeee','#222222'],drinks:['beer'],facial:['mustache'],fp:0.65},
@@ -913,7 +933,7 @@ class Backdrop{
 // ─── PLAYER: FLY GIRL ────────────────────────────────────────────────────
 class Player{
   constructor(){
-    this.w=26;this.h=52;this.maxHp=10;this.hp=10;this.weapon=0;this.perk={};this.outfit=null;this.outfits=[];
+    this.w=26;this.h=52;this.maxHp=10;this.hp=10;this.lives=5;this.weapon=0;this.perk={};this.outfit=null;this.outfits=[];
     this.vamp=0;this.t=0;this.resetPos(80);
   }
   resetPos(x){
@@ -2000,6 +2020,16 @@ class Game{
     if(h.meter>=1){this.endHold();if(h.last==='atk')this.judoThrow(e);else this.legBreak(e);}
     else if(h.t>4.2){this.endHold();e.damage(4,-side,380,0.8);this.popup(p.x+p.w/2,p.y-20,'SHOVE!','#ffffff');}
   }
+  // Fly Girl has several lives: losing all HP costs one life and she gets straight back up where she fell.
+  loseLife(){
+    const p=this.player,px=p.x+p.w/2,py=p.y+p.h/2;
+    p.lives--;this.endHold();p.hp=p.maxHp;p.inv=3;p.hurtT=0;this.projs=[];this.beams=[];
+    for(const e of this.enemies){const d=e.x+e.w/2-px;if(Math.abs(d)<260&&e!==this.boss&&e.st!=='thrown'&&e.st!=='climb'){if(e.st==='hold')e.st='walk';e.kb=Math.sign(d||1)*420;e.stun=Math.max(e.stun||0,1.2);e.flirtCd=3;}}
+    this.ring(px,py,p.color,2.2);this.ring(px,py,'#ffffff',1.4);this.sparks(px,py,'#ff2a6d',30,340);this.shake(0.5);Sfx.perk();
+    this.banner={a:'LIFE LOST',b:p.lives===1?'LAST LIFE!':p.lives+' LIVES LEFT',t:2,c:'#ff2a6d'};
+    this.popup(px,p.y-20,'-1 ♥','#ff2a6d');
+    this.later(0.3,()=>this.playerSay(GIRL_REVIVE,true));
+  }
   endHold(){
     const p=this.player;
     if(this.hold&&this.hold.e.st==='hold'){this.hold.e.st='walk';this.hold.e.flirtCd=3;}
@@ -2190,6 +2220,7 @@ class Game{
     this.ring(b.cx,b.cy,b.color,2.5);this.ring(b.cx,b.cy,'#ffffff',1.6);this.shock(b.cx,GROUND_Y,b.color,2.2);
     this.lights.add(b.cx,b.cy,320,b.color,1,1.2);this.shake(0.9);Sfx.explode();Sfx.roar();
     this.score+=5000+this.li*1000;
+    const pl=this.player;if(pl.lives<9){pl.lives++;this.popup(pl.x+pl.w/2,pl.y-34,'1UP ♥','#39ff14');}
     this.enemies.forEach(e=>this.sparks(e.x+e.w/2,e.y+e.h/2,e.color,10));this.enemies=[];this.projs=[];this.beams=[];
     this.pick.push(new Pickup('drink',b.cx-30,b.y),new Pickup('drink',b.cx+14,b.y));
     if(this.li<LEVELS.length-1)this.pick.push(new Pickup('capsule',b.cx-13,Math.min(b.y,GROUND_Y-150),PERKS[this.li]));
@@ -2277,7 +2308,8 @@ class Game{
     tx=clamp(tx,0,A);
     this.camX+=(tx-this.camX)*Math.min(1,dt*(this.locked?3:6));
     if(this.winT>0&&(this.winT-=dt)<=0){this.state='win';this.stateT=0;Sfx.stopMusic();Sfx.perk();}
-    if(p.hp<=0&&this.state==='playing'){this.state='gameover';this.stateT=0;Sfx.stopMusic();Sfx.over();}
+    if(p.hp<=0&&this.state==='playing'&&p.lives>1)this.loseLife();
+    if(p.hp<=0&&this.state==='playing'){p.lives=0;this.state='gameover';this.stateT=0;Sfx.stopMusic();Sfx.over();}
   }
   loadTick(){
     if(!this.fontReq){
@@ -2497,6 +2529,9 @@ class Game{
       const f=clamp(p.hp-i,0,1);if(f>0){ctx.fillStyle=fl?'#ff2a2a':this.hpG;ctx.fillRect(x,10,13*f,14);}
     }
     ctx.shadowBlur=0;
+    // lives
+    { const lx=34+p.maxHp*15+8;ctx.font=`bold 17px ${FONT}`;ctx.fillStyle='#ff2a6d';ctx.shadowBlur=8;ctx.shadowColor='#ff2a6d';
+      ctx.fillText('♥',lx,18);ctx.shadowBlur=0;ctx.fillStyle='#ffffff';ctx.fillText('×'+p.lives,lx+15,18); }
     // weapon + outfit
     const wc=p.weapon?'#bd00ff':'#00f3ff';
     ctx.strokeStyle=wc;ctx.lineWidth=1;ctx.strokeRect(12,30,18,18);
