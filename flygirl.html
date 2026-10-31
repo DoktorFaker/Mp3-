@@ -14,6 +14,10 @@
 html,body{width:100%;height:100%;-webkit-text-size-adjust:100%;background:#000;overflow:hidden;overscroll-behavior:none;touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;color-scheme:dark}
 #wrap{position:fixed;top:0;left:0;right:0;bottom:0;width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:#000;box-sizing:border-box;padding:env(safe-area-inset-top,0px) env(safe-area-inset-right,0px) env(safe-area-inset-bottom,0px) env(safe-area-inset-left,0px)}
 canvas{display:block;touch-action:none}
+/* iPhone "swipe up for full screen": briefly let the page scroll so Safari hides its bars */
+html.swipe,html.swipe body,html.swiped,html.swiped body{overflow:auto!important;height:auto!important}
+html.swipe body,html.swiped body{min-height:calc(100vh + 600px)}
+html.swipe,html.swipe body,html.swipe canvas{touch-action:pan-y!important}
 </style>
 <div id="wrap"><canvas id="c"></canvas></div>
 <script>
@@ -91,6 +95,22 @@ const clamp=(v,a,b)=>v<a?a:v>b?b:v;
 const overlap=(a,b)=>a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y;
 addEventListener('resize',fit);addEventListener('orientationchange',()=>[60,300,700,1200].forEach(t=>setTimeout(fit,t)));
 addEventListener('load',fit);
+const IS_IOS=/iP(hone|od|ad)/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+const SWIPE={active:false,t0:0,h0:0};
+function startSwipeFS(){
+  SWIPE.active=true;SWIPE.t0=performance.now();SWIPE.h0=innerHeight;
+  document.documentElement.classList.add('swipe');
+}
+function endSwipe(ok){
+  if(!SWIPE.active)return;SWIPE.active=false;
+  if(!ok){document.documentElement.classList.remove('swipe');try{scrollTo(0,0);}catch(e){}}
+  else{document.documentElement.classList.add('swiped');document.documentElement.classList.remove('swipe');}
+  [80,300,700].forEach(t=>setTimeout(fit,t));
+  if(game){game.swipeCard=false;if(!ok)game.fsCard=true;}
+}
+addEventListener('scroll',()=>{if(SWIPE.active&&(scrollY>30||innerHeight>SWIPE.h0+20))endSwipe(true);},{passive:true});
+if(window.visualViewport)visualViewport.addEventListener('resize',()=>{if(SWIPE.active&&innerHeight>SWIPE.h0+20)endSwipe(true);});
+setInterval(()=>{if(SWIPE.active&&performance.now()-SWIPE.t0>12000)endSwipe(false);},500);
 setInterval(()=>{const vv=window.visualViewport,vw=Math.round((vv&&vv.width)||innerWidth),vh=Math.round((vv&&vv.height)||innerHeight);if(vw!==lastVW||vh!==lastVH)fit();},500);
 if(window.visualViewport)visualViewport.addEventListener('resize',fit);
 function circleRect(cx,cy,r,b){const nx=clamp(cx,b.x,b.x+b.w),ny=clamp(cy,b.y,b.y+b.h);return(cx-nx)**2+(cy-ny)**2<r*r;}
@@ -1667,7 +1687,7 @@ class Touch{
       Voice.unlock();
       if(g.fsCard){g.fsCard=false;return;}
       const f=this.fsBtn,pb=this.pauseBtn;
-      if(!STANDALONE&&Math.abs(p.x-f.x)<f.w/2+8&&Math.abs(p.y-f.y)<f.r+8){if(FS_OK)toggleFull();else g.fsHelp();return;}
+      if(!STANDALONE&&Math.abs(p.x-f.x)<f.w/2+8&&Math.abs(p.y-f.y)<f.r+8){if(FS_OK)toggleFull();else if(IS_IOS)g.swipeFS();else g.fsHelp();return;}
       if(Math.hypot(p.x-pb.x,p.y-pb.y)<pb.r*1.5){if(g.state==='playing')g.pause();else if(g.state==='paused')g.resume();return;}
       let own=null;
       if(this.padHit(p))own='pad';
@@ -1680,6 +1700,7 @@ class Touch{
       if(t.own&&t.own!=='pad'){const b=this.btns.find(q=>q.id===t.own);if(b&&Math.hypot(p.x-b.x,p.y-b.y)>b.r*2.4)t.own=null;}
     };
     const th=e=>{
+      if(SWIPE.active){if(e.type==='touchend'){this.touches={};this.rebuild();}return;}
       e.preventDefault();this.used=true;Sfx.init();
       // sideways phone: keep asking for real fullscreen on touches until the browser grants it (or refuses twice)
       if(e.type==='touchstart'&&FS_OK&&fsFails<2&&!(document.fullscreenElement||document.webkitFullscreenElement)&&(innerWidth>innerHeight||!this.fsTried)){this.fsTried=true;toggleFull(true);}
@@ -1695,7 +1716,7 @@ class Touch{
     canvas.addEventListener('mousedown',e=>{Sfx.init();start('m',this.toBase(e.clientX,e.clientY));this.rebuild();});
     addEventListener('mousemove',e=>{if(this.touches.m){move('m',this.toBase(e.clientX,e.clientY));this.rebuild();}});
     addEventListener('mouseup',()=>{if(this.touches.m){delete this.touches.m;this.rebuild();}});
-    document.addEventListener('touchmove',e=>e.preventDefault(),{passive:false});
+    document.addEventListener('touchmove',e=>{if(!SWIPE.active)e.preventDefault();},{passive:false});
     document.addEventListener('gesturestart',e=>e.preventDefault());
   }
   layout(){
@@ -1984,9 +2005,21 @@ class Game{
     return null;
   }
   fsHelp(){if(this.state==='playing')this.pause();this.fsCard=true;}
+  swipeFS(){if(this.state==='playing')this.pause();this.swipeCard=true;this.fsCard=false;startSwipeFS();}
+  drawSwipeCard(){
+    const t=this.t,bob=Math.sin(t*5)*14;
+    ctx.save();ctx.fillStyle='rgba(4,0,12,0.9)';ctx.fillRect(0,0,BASE_W,BASE_H);
+    ctx.textAlign='center';ctx.textBaseline='middle';
+    this.neonText('SWIPE UP',400,120,44,'#00f3ff',22);
+    ctx.font=`22px ${FONT}`;ctx.fillStyle='#ffffff';ctx.fillText('Swipe up anywhere on the screen',400,170);ctx.fillText('to hide Safari\'s bars and go full screen',400,196);
+    ctx.fillStyle='#ff4fd8';ctx.shadowBlur=16;ctx.shadowColor='#ff4fd8';
+    ctx.beginPath();ctx.moveTo(400,250+bob);ctx.lineTo(440,300+bob);ctx.lineTo(418,300+bob);ctx.lineTo(418,370+bob);ctx.lineTo(382,370+bob);ctx.lineTo(382,300+bob);ctx.lineTo(360,300+bob);ctx.closePath();ctx.fill();
+    ctx.shadowBlur=0;ctx.font=`16px ${FONT}`;ctx.fillStyle='#ffd319';ctx.fillText('Works best with the phone held sideways',400,420);
+    ctx.restore();
+  }
   drawFsCard(){
     const iOS=/iP(hone|od|ad)/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
-    const L=iOS?['Safari on iPhone does not let web pages','switch to full screen. Two easy options:','',
+    const L=iOS?['iPhone blocks the full screen button for','web pages in every browser. Two easy options:','',
       'QUICK:  turn the phone sideways, tap  aA','in the address bar, then  Hide Toolbar.','',
       'TRUE FULL SCREEN:  open the game\'s own web link','in Safari, tap  Share  →  Add to Home Screen,','then start Fly Girl from the new icon.']
       :['This view blocks full screen.','Open the game in Chrome, then tap FULL SCREEN.'];
@@ -2321,6 +2354,7 @@ class Game{
     if(this.state==='gameover')this.drawGameOver();
     if(this.state==='win')this.drawWin();
     if(this.fsCard)this.drawFsCard();
+    if(this.swipeCard)this.drawSwipeCard();
     if(lastError){ctx.save();ctx.fillStyle='rgba(120,0,0,0.85)';ctx.fillRect(0,BASE_H-22,BASE_W,22);ctx.fillStyle='#fff';ctx.font=`15px ${FONT}`;ctx.textAlign='left';ctx.textBaseline='middle';ctx.fillText('ERROR: '+lastError,8,BASE_H-11);ctx.restore();}
   }
   drawWorld(ac,beat){
@@ -2559,6 +2593,7 @@ class Game{
     ctx.drawImage(Tex.scanlines(),0,0,BASE_W,BASE_H);
     if(this.banner)this.drawBanner();
     if(this.fsCard)this.drawFsCard();
+    if(this.swipeCard)this.drawSwipeCard();
   }
 }
 
