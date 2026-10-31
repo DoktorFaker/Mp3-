@@ -179,6 +179,17 @@ const Sfx=(()=>{
     shoot(){tone(1200,'square',0.08,0.04,0,400);},
     laser(){tone(1500,'sawtooth',0.4,0.07,0,200);},
     glass(){tone(2400,'triangle',0.12,0.07,0,1800);noise(0.08,0.12,0,5000);},
+    scream(){
+      if(!ac)return;const t=ac.currentTime,o=ac.createOscillator(),o2=ac.createOscillator(),lfo=ac.createOscillator(),lg=ac.createGain(),f=ac.createBiquadFilter(),g=ac.createGain();
+      o.type='sawtooth';o.frequency.setValueAtTime(700,t);o.frequency.exponentialRampToValueAtTime(1250,t+0.18);o.frequency.exponentialRampToValueAtTime(950,t+0.75);
+      o2.type='square';o2.frequency.setValueAtTime(1400,t);o2.frequency.exponentialRampToValueAtTime(2500,t+0.18);o2.frequency.exponentialRampToValueAtTime(1900,t+0.75);
+      lfo.frequency.value=7;lg.gain.value=40;lfo.connect(lg);lg.connect(o.frequency);lg.connect(o2.frequency);
+      f.type='bandpass';f.frequency.value=1700;f.Q.value=1.1;
+      g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(0.16,t+0.05);g.gain.setValueAtTime(0.16,t+0.55);g.gain.exponentialRampToValueAtTime(0.0008,t+0.8);
+      o.connect(f);o2.connect(f);f.connect(g);g.connect(master);[o,o2,lfo].forEach(x=>{x.start(t);x.stop(t+0.82);});
+    },
+    crack(){if(!ac)return;noise(0.07,0.4,0,2500);tone(2600,'square',0.03,0.12);tone(150,'square',0.14,0.25,0,55);},
+    kiss(){if(!ac)return;noise(0.05,0.12,0,3000);tone(700,'sine',0.09,0.09,0,1300);},
     whistle(){if(!ac)return;const t=ac.currentTime;tone(1100,'sine',0.22,0.07,t,2300);tone(1500,'sine',0.38,0.07,t+0.26,650);},
     drink(){if(!ac)return;tone(660,'sine',0.08,0.12);tone(990,'sine',0.12,0.1,ac.currentTime+0.07);},
     perk(){if(!ac)return;[523,659,784,1047].forEach((f,i)=>tone(f,'sine',0.22,0.16,ac.currentTime+i*0.09));},
@@ -341,6 +352,12 @@ const LINES_THROW=["Catch, babe!","Drink up!","Cheers!","Have one on me!","Botto
 const LINES_THROW_HIT=["Ha! Drinks on you!","Oops, my bad, babe!","Cheers, sweetheart!","Nice catch!","Bullseye!"];
 const LINES_GRAB=["Come here, sugar!","Gotcha, foxy!","Don't play hard to get!","Where you going, cupcake?","Just one dance!","C'mon, babe!","Don't be like that!","Where ya going?","You owe me a dance!","Dance with me!","Don't be shy!"];
 const LINES_MISS=["Whoa, slippery!","Hey, come back!","Playing hard to get?","Aw, man!"];
+const LINES_HOLD=["Gimme a kiss!","Pucker up, baby!","Just one little kiss!","Mwah! Mwah!","Don't fight it, babe!","C'mere, sugar lips!","Hold still, foxy!","You know you like it!"];
+const LINES_SCREAM=["AAAAAH!","Let go of me!","Get OFF me!","Help! Creep alert!","EEEEK!","Hands off, creep!"];
+const LINES_LEG=["MY LEG!","Oww, my knee!","Not the knee!","I need a doctor!","It bends the wrong way!"];
+const LINES_FLY=["Whoaaa!","I can fly!","Not the face!","Waaah!"];
+const LINES_GIRL_THROW=["Fly, creep!","Out of my space!","Air mail, loser!","Judo, baby!"];
+const LINES_GIRL_LEG=["Break a leg, creep!","That's for grabbing!","Hands to yourself!","Walk it off!"];
 const LINES_KO=["I'll call you!","Worth it...","My Walkman!","Mom's gonna kill me...","I think I'm in love...","Totally bogus...","Note to self: no.","Tell my Camaro I love it...","Ow... my pride...","Rejected... again."];
 const LINES_IDLE=["Where's the party?","This DJ is rad!","Anyone seen my comb?","Another round!","Is that Bon Jovi?","Tubular!","Who wants to see my moonwalk?","I'm the life of the party!","Totally wasted...","Check out my moves!"];
 const LEVEL_STORY=[
@@ -454,8 +471,9 @@ function drawDude(X,L,P,x,y,dir,sc){
   if(P.alpha!=null)X.globalAlpha*=P.alpha;
   if(P.squash)X.scale(1-P.squash,1+P.squash);
   if(P.fall){X.translate(0,-P.fall*5);X.rotate(-P.fall*1.5);}
+  if(P.rot){X.translate(0,-40);X.rotate(P.rot);X.translate(0,40);}
   X.lineCap='round';X.lineJoin='round';
-  const bob=-Math.abs(Math.sin(ph))*2*mv,hipY=-34+bob;
+  const bob=-Math.abs(Math.sin(ph))*2*mv*(P.limp?2.6:1),hipY=-34+bob;
   const lean=(P.lean||0)+Math.sin(t*1.7+(P.seed||0))*0.07*drunk-(P.flinch||0)*0.3;
   const sA=Math.sin(ph)*0.55*mv,swing=-sA*0.9;
   const legW=6.8*Math.sqrt(g);
@@ -505,7 +523,9 @@ function drawDude(X,L,P,x,y,dir,sc){
   // cape (behind everything)
   if(L.cape){X.save();X.translate(0,hipY);X.rotate(lean);X.fillStyle=W(L.cape);X.beginPath();X.moveTo(-5,-25);X.quadraticCurveTo(-18-mv*6,-6,-16-mv*8+Math.sin(t*4)*2,34);X.lineTo(2,34);X.lineTo(4,-25);X.closePath();X.fill();
     X.strokeStyle=W('#ffd319');X.lineWidth=1.2;X.stroke();X.restore();}
-  leg(-sA,Math.max(0,Math.sin(ph+1.4+Math.PI))*0.8*mv,true);
+  let fA=sA,fK=Math.max(0,Math.sin(ph+1.4))*0.8*mv,bA=-sA,bK=Math.max(0,Math.sin(ph+1.4+Math.PI))*0.8*mv;
+  if(P.legBreak){fA=0.6;fK=-1.3;bA=-0.05;bK=0.1;}else if(P.limp){fK*=0.15;}
+  leg(bA,bK,true);
   X.save();X.translate(0,hipY);X.rotate(lean);
   const reach=P.reach||0;
   const backHand=arm(-0.5,lerp(swing,1.45,reach),lerp(swing+0.35,1.55,reach),true);hand(backHand,true);
@@ -532,7 +552,7 @@ function drawDude(X,L,P,x,y,dir,sc){
   if(L.chain){X.strokeStyle=W('#ffd319');X.lineWidth=0.9;X.beginPath();X.moveTo(1,-25);X.quadraticCurveTo(fx-3,-15,fx-0.5,-21);X.stroke();X.fillStyle=W('#ffd319');X.beginPath();X.arc(fx-2.5,-17.5,1.3,0,TAU);X.fill();}
   X.fillStyle=W(shade(L.pants,0.5));X.fillRect(bx+0.3,-1.6,fx-bx+bel*0.4-1,3);
   X.restore();
-  leg(sA,Math.max(0,Math.sin(ph+1.4))*0.8*mv,false);
+  leg(fA,fK,false);
   X.save();X.translate(0,hipY);X.rotate(lean);
   if(L.top==='trench'){X.fillStyle=W(L.topC);X.beginPath();X.moveTo(bx,0);X.lineTo(fx,0);X.lineTo(fx+2+sA*6,20);X.lineTo(bx-3+sA*4,20);X.closePath();X.fill();X.strokeStyle='rgba(0,0,0,0.3)';X.lineWidth=0.8;X.stroke();}
   // head
@@ -567,7 +587,8 @@ function drawDude(X,L,P,x,y,dir,sc){
   if(L.facial==='mustache'){X.fillStyle=HC;X.beginPath();X.moveTo(hx+3.2,hy+2.6);X.quadraticCurveTo(hx+6,hy+1.6,hx+7.6,hy+3);X.lineTo(hx+7,hy+3.9);X.quadraticCurveTo(hx+5.4,hy+3,hx+3.4,hy+3.6);X.closePath();X.fill();}
   else if(L.facial==='stubble'||L.facial==='beard'){const a0=X.globalAlpha;X.globalAlpha=a0*(L.facial==='beard'?0.95:0.3);X.fillStyle=HC;X.beginPath();X.ellipse(hx+2.8,hy+4.6,4.9,3.6,0.2,0,TAU);X.fill();X.globalAlpha=a0;}
   const mx=hx+5,my=hy+4.1;
-  if(P.talk){X.fillStyle=W('#3a0a0a');X.beginPath();X.ellipse(mx,my,1.3,0.5+0.8*P.talk,0,0,TAU);X.fill();}
+  if(P.pucker){X.fillStyle=W('#d9506e');X.beginPath();X.ellipse(mx+1.8,my-0.2,1.4,1.2,0,0,TAU);X.fill();X.fillStyle=W('#7a1a2a');X.beginPath();X.arc(mx+2,my-0.2,0.5,0,TAU);X.fill();}
+  else if(P.talk){X.fillStyle=W('#3a0a0a');X.beginPath();X.ellipse(mx,my,1.3,0.5+0.8*P.talk,0,0,TAU);X.fill();}
   else{X.strokeStyle=W('#6a2a20');X.lineWidth=0.7;X.beginPath();X.moveTo(mx-1.6,my);X.quadraticCurveTo(mx,my+(P.ko?-0.7:0.8),mx+1.6,my-0.6);X.stroke();}
   // hair top / front
   X.fillStyle=HC;
@@ -594,7 +615,8 @@ function drawDude(X,L,P,x,y,dir,sc){
   X.restore();
   // front arm + drink
   let tu,tf,tilt=0;
-  if(P.throwA!=null){const a=P.throwA;tu=a<0.6?lerp(0.2,-2.6,a/0.6):lerp(-2.6,1.6,Math.min(1,(a-0.6)/0.4));tf=tu+(a<0.6?0.9:0.2);}
+  if(P.hug){tu=1.4+Math.sin(t*9)*0.08;tf=1.8;}
+  else if(P.throwA!=null){const a=P.throwA;tu=a<0.6?lerp(0.2,-2.6,a/0.6):lerp(-2.6,1.6,Math.min(1,(a-0.6)/0.4));tf=tu+(a<0.6?0.9:0.2);}
   else if(L.drink==='none'){const r2=P.reach2!=null?P.reach2:reach;tu=lerp(-swing*0.9,1.5,r2);tf=lerp(tu+0.45,1.6,r2);}
   else{const s=P.sip||0;tu=lerp(0.15+swing*0.25,0.95,s);tf=lerp(tu+1.95,3.55,s);tilt=-s*1.1;}
   const fh=arm(1.5,tu,tf,false);
@@ -759,15 +781,20 @@ class Player{
   resetPos(x){
     this.x=x;this.y=GROUND_Y-this.h-1;this.vx=0;this.vy=0;this.dir=1;this.onGround=true;this.surf=null;
     this.inv=0;this.hurtT=0;this.atkT=0;this.atk=null;this.pending=null;this.jumps=0;this.dropT=0;this.coyote=0;this.diving=false;
-    this.safeX=x;this.trailT=0;this.climbing=false;this.climbPh=0;
+    this.safeX=x;this.trailT=0;this.climbing=false;this.climbPh=0;this.held=false;
   }
   get speed(){return this.outfit==='raveJacket'?255:205;}
   get jumpV(){return this.outfit==='raveJacket'?-700:-630;}
   get kickR(){return this.outfit==='cyberKimono'?52:40;}
   get color(){return OUTFIT_COLORS[this.outfit]||'#ff007f';}
   hurtBox(){return{x:this.x+4,y:this.y+6,w:this.w-8,h:this.h-6};}
-  kick(g){
+  kick(g,inp){
     if(this.atkT>0||this.hurtT>0)return;
+    if(inp&&inp.down&&this.onGround&&!this.climbing){
+      this.atk='lowkick';this.atkT=0.3;Sfx.kick();const r=this.kickR+8;
+      this.pending={t:0.06,hb:{x:this.dir>0?this.x+this.w-4:this.x-r+4,y:this.y+this.h-24,w:r,h:24},dmg:10,kind:'lowkick',kb:120};
+      return;
+    }
     if(!this.onGround&&!this.climbing&&this.vy>-120&&!this.diving){
       this.diving=true;this.vy=760;this.vx=this.dir*250;this.atk='dive';this.atkT=0.1;Sfx.dive();return;
     }
@@ -778,6 +805,7 @@ class Player{
   }
   weaponAtk(g){
     if(this.atkT>0||this.diving||this.hurtT>0)return;
+    const grabbable=g.throwable();if(grabbable){g.judoThrow(grabbable);return;}
     if(this.weapon===0){
       this.atk='katana';this.atkT=0.24;Sfx.swing();
       const crit=!!this.perk.crit&&Math.random()<0.2;
@@ -802,6 +830,7 @@ class Player{
     this.t+=dt;
     if(this.inv>0)this.inv-=dt;if(this.hurtT>0)this.hurtT-=dt;if(this.dropT>0)this.dropT-=dt;if(this.coyote>0)this.coyote-=dt;
     if(this.atkT>0){this.atkT-=dt;if(this.atkT<=0&&this.atk!=='dive')this.atk=null;}
+    if(this.held){this.vx=0;this.vy=0;this.diving=false;this.climbing=false;return;}
     const ctl=this.hurtT<=0;
     let ax=0;if(ctl){if(inp.left)ax-=1;if(inp.right)ax+=1;}
     const lad=g.world.ladderAt(this.x+this.w/2,this.y,this.y+this.h),feet=this.y+this.h;
@@ -865,6 +894,8 @@ class Player{
     if(run)ctx.rotate(d*0.08);
     if(this.diving)ctx.rotate(d*0.35);
     if(this.hurtT>0)ctx.rotate(-d*0.25);
+    if(this.atk==='lowkick')ctx.scale(1,0.86);
+    if(this.held)ctx.rotate(-d*0.12+Math.sin(t*30)*0.05);
     ctx.translate(-cx,-(cy+this.h));
     const prog=(dur)=>clamp(1-this.atkT/dur,0,1);
     let fl,bl,fa,ba;
@@ -881,6 +912,9 @@ class Player{
     else if(air){fa=hammerIdle?-d*1.6:-d*2.3;ba=d*0.8;}
     else if(run){fa=(hammerIdle?-d*1.1:0)-Math.sin(ph)*(hammerIdle?0.25:0.9);ba=Math.sin(ph)*0.9;}
     else{fa=(hammerIdle?-d*1.1:-d*0.35)+Math.sin(t*2)*0.05;ba=d*0.15;}
+    if(this.held){const w=Math.sin(t*28);fa=-d*(2.3+w*0.5);ba=-d*(2.0-w*0.5);fl=-d*(0.3+w*0.4);bl=d*(0.2+w*0.4);}
+    if(this.atk==='lowkick'){fl=-d*1.4;bl=d*0.5;fa=d*1.2;ba=-d*0.9;}
+    if(this.atk==='throw'){const q=clamp(1-this.atkT/0.4,0,1);fa=-d*(2.9-q*2.2);ba=-d*(2.7-q*2);}
     if(this.climbing&&!this.atk){const c=Math.sin(this.climbPh);fl=-d*(0.7+0.5*c);bl=-d*(0.7-0.5*c);fa=-d*(2.7+0.3*c);ba=-d*(2.7-0.3*c);}
 
     const arm=(ang,back,weapon)=>{
@@ -983,7 +1017,7 @@ class Enemy{
     this.vx=0;this.vy=0;this.dir=-1;this.kb=0;this.stun=0;this.hitT=0;this.onGround=false;this.surf=null;this.contact=false;
     this.st='walk';this.stT=0;this.flirtCd=rnd(0.4,1.8);this.say=null;this.ph=Math.random()*6;this.seed=Math.random()*9;
     this.vp=type==='mini'?1.35:rnd(0.45,1);this.vr=rnd(0.85,1.05);this.vs=Math.floor(Math.random()*7);this.lastWords=pick(Math.random,LINES_KO);
-    this.drunk=rnd(0.35,1);this.sip=0;this.reach=0;this.hasDrink=true;this.throwCd=rnd(1.2,2.6);this.throwA=null;this.refill=0;this.shootT=rnd(1.2,2.4);
+    this.drunk=rnd(0.35,1);this.legT=0;this.limp=false;this.rot=0;this.spin=0;this.sip=0;this.reach=0;this.hasDrink=true;this.throwCd=rnd(1.2,2.6);this.throwA=null;this.refill=0;this.shootT=rnd(1.2,2.4);
   }
   get liq(){return LIQ[this.look.drink]||'#ffffff';}
   box(){return{x:this.x+2,y:this.y+6,w:this.w-4,h:this.h-6};}
@@ -995,13 +1029,22 @@ class Enemy{
     this.hp-=d;this.hitT=0.16;this.kb=dir*(kb||150);this.dir=-dir;
     if(stun)this.stun=Math.max(this.stun,stun);
     this.vy=Math.min(this.vy,-150);
-    this.st='walk';this.stT=0;this.flirtCd=Math.max(this.flirtCd,1.2);this.reach=0;this.throwA=null;
+    if(this.st!=='thrown'){this.st='walk';this.stT=0;}this.flirtCd=Math.max(this.flirtCd,1.2);this.reach=0;this.throwA=null;
     if(this.hp>0&&Math.random()<0.35)this.speak(LINES_OUCH,0.9);
   }
   update(dt,g){
     this.t+=dt;this.stT+=dt;if(this.hitT>0)this.hitT-=dt;if(this.stun>0)this.stun-=dt;if(this.flirtCd>0)this.flirtCd-=dt;
     if(this.say&&(this.say.t-=dt)<=0)this.say=null;
     this.kb*=Math.pow(0.02,dt);
+    if(this.legT>0){this.legT-=dt;if(this.legT<=0)this.limp=true;else if(this.onGround&&Math.random()<dt*4)this.vy=-170;}
+    if(this.st==='thrown'){
+      this.rot+=dt*this.spin;this.vy=Math.min(this.vy+GRAV*dt,900);const pb=this.y+this.h;
+      this.x=clamp(this.x+this.vx*dt,g.minX,g.maxX-this.w);this.y+=this.vy*dt;
+      landOn(this,pb,g.world.surfaces(),false);
+      if(this.onGround&&this.stT>0.15)g.crash(this);
+      return;
+    }
+    if(this.st==='hold'){this.vx=0;this.kb=0;this.reach=1;return;}
     const p=g.player,pcx=p.x+p.w/2,cx=this.x+this.w/2,adx=Math.abs(pcx-cx);
     const sameLvl=Math.abs((p.y+p.h)-(this.y+this.h))<70,near=adx<380&&sameLvl;
     let want=0;
@@ -1048,7 +1091,7 @@ class Enemy{
           if(this.stT>=0.22&&!this.grabbed){
             this.grabbed=true;
             const hb={x:this.dir>0?this.x+this.w-2:this.x-26,y:this.y+this.h*0.2,w:28,h:this.h*0.4};
-            if(overlap(hb,p.hurtBox())){g.hurtPlayer(1,cx);this.speak(LINES_GRAB,1.4,true);}
+            if(overlap(hb,p.hurtBox())){if(!g.startHold(this)){g.hurtPlayer(1,cx);this.speak(LINES_GRAB,1.4,true);}}
             else if(Math.random()<0.5)this.speak(LINES_MISS,1.1);
           }
           if(this.stT>0.6){this.st='walk';this.flirtCd=rnd(1.4,2.8);}
@@ -1058,7 +1101,7 @@ class Enemy{
       if(this.st!=='grab')this.reach=Math.max(0,this.reach-dt*4);
       if(this.type==='mini'&&this.onGround&&Math.random()<dt*0.5)this.vy=-380;
     }
-    this.vx=this.stun>0?0:this.dir*this.spd*want;
+    this.vx=this.stun>0?0:this.dir*this.spd*want*(this.limp?0.45:1);
     this.vy=Math.min(this.vy+GRAV*dt,820);
     const prevB=this.y+this.h;
     let nx=this.x+(this.vx+this.kb)*dt;
@@ -1073,8 +1116,9 @@ class Enemy{
     if(this.onGround){ctx.fillStyle='rgba(0,0,0,0.42)';ctx.beginPath();ctx.ellipse(cx,fy,15*this.sc,3.6,0,0,TAU);ctx.fill();}
     const st=this.st;
     const P={mv:Math.min(1,Math.abs(this.vx)/35),ph:this.ph,t:this.t,seed:this.seed,drunk:this.stun>0?1:this.drunk,
-      lean:(st==='lunge'?0.2:st==='flirt'?0.07:0)+(st==='grab'?0.22*this.reach:0),
-      reach:st==='flirt'?0.45:this.reach,talk:this.say?(Math.sin(this.t*24)>0?1:0.3):0,wink:st==='flirt'&&Math.sin(this.t*4)>0.2,brow:st==='flirt'||st==='lunge'?1:0,
+      lean:(st==='lunge'?0.2:st==='flirt'?0.07:st==='hold'?0.3:0)+(st==='grab'?0.22*this.reach:0),
+      rot:st==='thrown'?this.rot:0,hug:st==='hold',pucker:st==='hold'&&Math.sin(this.t*5)>-0.3,legBreak:this.legT>0,limp:this.limp,
+      reach:st==='flirt'?0.45:this.reach,talk:this.legT>0?1:this.say?(Math.sin(this.t*24)>0?1:0.3):0,wink:st==='flirt'&&Math.sin(this.t*4)>0.2,brow:st==='flirt'||st==='lunge'?1:0,
       sip:this.sip,flinch:this.hitT>0?1:0,flash:this.hitT>0.08,hasDrink:this.hasDrink,throwA:this.throwA,alpha:this.type==='clone'?0.55:1,
       nod:this.stun>0?Math.sin(this.t*6)*0.2:0};
     drawDude(ctx,this.look,P,cx,fy,this.dir,this.sc);
@@ -1700,7 +1744,7 @@ class Game{
     this.player.resetPos(80);this.player.inv=1;this.camX=0;this.shakeT=0;
     this.groundPat=hiPattern(Tex.floor(lv.ac));this.platPat=hiPattern(Tex.plat(lv.ac));
     this.banner={a:`LEVEL ${i+1}`,b:lv.name.toUpperCase(),t:2.6,c:lv.ac};
-    this.timers=[];this.story={txt:LEVEL_STORY[i],t:-2.4,dur:7.5};
+    this.timers=[];this.story={txt:LEVEL_STORY[i],t:-2.4,dur:7.5};this.hold=null;
     Sfx.stopMusic();Sfx.startMusic(lv.root);Sfx.level();
   }
   get minX(){return this.locked?this.world.AX:0;}
@@ -1723,6 +1767,76 @@ class Game{
     const p=this.player,G=900,sx=e.x+e.w/2+e.dir*8,sy=e.y+e.h*0.25,tt=clamp(Math.abs(p.x-e.x)/420,0.55,1.05);
     const tx=p.x+p.w/2+p.vx*tt*0.5,ty=p.y+p.h/2;
     this.projs.push(new Proj('glass',sx,sy,(tx-sx)/tt,((ty-sy)-0.5*G*tt*tt)/tt,e.liq,1,{g:G,owner:e}));Sfx.swing();
+  }
+  // ── grabbed: he holds her and tries to kiss her; mash KICK (leg breaker) or ATK (judo throw) to break free
+  startHold(e){
+    const p=this.player;
+    if(this.hold||p.inv>0||p.climbing||p.hp<=0)return false;
+    this.hold={e,t:0,meter:0,drain:1.1,kiss:0.35,last:'kick'};
+    p.held=true;p.vx=0;p.vy=0;p.diving=false;p.atk=null;p.pending=null;p.y=e.y+e.h-p.h;
+    e.st='hold';e.stT=0;e.reach=1;
+    if(e.hasDrink&&e.look.drink!=='none'){this.sparks(e.x+e.w/2,e.y+e.h*0.5,e.liq,8,140);Sfx.glass();}
+    e.hasDrink=false;e.speak(LINES_HOLD,1.6,false);
+    this.scream();
+    return true;
+  }
+  scream(){
+    Sfx.scream();const txt=pick(Math.random,LINES_SCREAM);this.pSay={txt,t:1.3};
+    this.later(0.8,()=>{if(this.hold)Voice.say(txt,'girl',{force:true});});
+  }
+  updateHold(dt,inp){
+    const h=this.hold,e=h.e,p=this.player;
+    if(!this.enemies.includes(e)||e.hp<=0||e.st!=='hold'){this.endHold();return;}
+    h.t+=dt;
+    const side=e.x+e.w/2<p.x+p.w/2?-1:1;
+    e.x=side<0?p.x-e.w+10:p.x+p.w-10;e.y=p.y+p.h-e.h;e.dir=-side;p.dir=side;e.vy=0;
+    if(inp.kickP){h.meter+=0.24;h.last='kick';}
+    if(inp.atkP){h.meter+=0.24;h.last='atk';}
+    if(inp.jumpP||inp.upP||inp.swP)h.meter+=0.12;
+    h.meter=Math.max(0,h.meter-dt*0.18);
+    if((h.kiss-=dt)<=0){h.kiss=0.65;Sfx.kiss();this.vfx.push(new Popup(e.x+e.w/2,e.y-4,'MWAH!','#ff4f9a'));this.hearts(e);}
+    if((h.drain-=dt)<=0){h.drain=1.2;p.hp=Math.max(0,p.hp-0.5);this.shake(0.1);if(Math.random()<0.5)this.scream();}
+    if(!e.say&&Math.random()<dt*0.6)e.speak(LINES_HOLD,1.4,false);
+    if(h.meter>=1){this.endHold();if(h.last==='atk')this.judoThrow(e);else this.legBreak(e);}
+    else if(h.t>4.2){this.endHold();e.damage(4,-side,380,0.8);this.popup(p.x+p.w/2,p.y-20,'SHOVE!','#ffffff');}
+  }
+  endHold(){
+    const p=this.player;
+    if(this.hold&&this.hold.e.st==='hold'){this.hold.e.st='walk';this.hold.e.flirtCd=3;}
+    this.hold=null;p.held=false;p.inv=Math.max(p.inv,0.8);
+  }
+  legBreak(e){
+    const p=this.player,ex=e.x+e.w/2;
+    e.damage(14+this.li*2,p.dir,90,2.6);e.legT=2.6;
+    Sfx.crack();this.shake(0.25);this.hitStop=0.12;
+    this.vfx.push(new Popup(ex,e.y+e.h*0.55,'CRACK!','#ffffff'));this.sparks(ex,e.y+e.h*0.75,'#ffffff',12,220);
+    this.lights.add(ex,e.y+e.h*0.7,110,'#ffffff',0.2,0.9);
+    e.speak(LINES_LEG,1.6,true);this.later(1.0,()=>this.playerSay(LINES_GIRL_LEG,false));
+    p.atk='lowkick';p.atkT=0.3;
+  }
+  judoThrow(e){
+    const p=this.player;
+    e.st='thrown';e.stT=0;e.vx=-p.dir*340;e.vy=-620;e.onGround=false;e.y-=6;e.rot=0;e.spin=-p.dir*11;e.kb=0;e.stun=0;e.hitSet=new Set();
+    if(e.hasDrink&&e.look.drink!=='none')this.sparks(e.x+e.w/2,e.y+e.h*0.5,e.liq,8,140);
+    e.hasDrink=false;
+    p.atk='throw';p.atkT=0.4;Sfx.swing();this.popup(p.x+p.w/2,p.y-24,'JUDO THROW!','#00f3ff');
+    e.speak(LINES_FLY,1.2,true);this.later(0.6,()=>this.playerSay(LINES_GIRL_THROW,false));
+  }
+  crash(e){
+    const ex=e.x+e.w/2,fy=e.y+e.h;
+    e.st='walk';e.rot=0;e.vx=0;
+    this.shake(0.3);this.dust(ex,fy,14);this.shock(ex,fy,'#ffffff',0.8);Sfx.hammer();
+    this.vfx.push(new Popup(ex,e.y-6,'SLAM!','#ffd319'));
+    e.damage(20+this.li*2,e.spin>0?1:-1,60,1.6);
+  }
+  throwable(){
+    const p=this.player;
+    for(const e of this.enemies){
+      if(e.type==='clone'||e.st==='thrown'||!(e.stun>0||e.legT>0))continue;
+      const dx=(e.x+e.w/2)-(p.x+p.w/2);
+      if(Math.sign(dx)===p.dir&&Math.abs(dx)<56&&Math.abs((e.y+e.h)-(p.y+p.h))<30)return e;
+    }
+    return null;
   }
   surfBelow(x,y){let best=BASE_H+200;for(const s of this.world.surfaces())if(x>=s.x&&x<=s.x+s.w&&s.y>=y-2&&s.y<best)best=s.y;return best;}
   groundAt(x){return this.world.ground.some(s=>x>=s.x&&x<=s.x+s.w);}
@@ -1764,6 +1878,7 @@ class Game{
     }
     for(const e of this.targets()){
       if(!overlap(hb,e.box()))continue;
+      if(pd.kind==='lowkick'&&e!==this.boss&&e.st!=='thrown'){this.legBreak(e);hits++;continue;}
       if(!this.hitTarget(e,pd.dmg,p.dir,pd.kb,pd.stun))continue;
       hits++;
       const ex=e.x+e.w/2,ey=e.y+e.h/2;
@@ -1866,15 +1981,22 @@ class Game{
     if(this.state==='title'){this.camX+=dt*60;this.demo.t+=dt;this.demo.vx=200;this.demo.onGround=true;this.titleLine=Math.floor(this.t/2.2)%LINES_FLIRT.length;return;}
     if(this.state!=='playing')return;
     const inp=this.input(),p=this.player;
-    if(inp.swP){p.weapon^=1;Sfx.hit();this.popup(p.x+p.w/2,p.y-16,p.weapon?'CYBER-HAMMER':'KATANA','#ffcc00');}
-    if(inp.kickP)p.kick(this);
-    if(inp.atkP)p.weaponAtk(this);
+    if(this.hold)this.updateHold(dt,inp);
+    else{
+      if(inp.swP){p.weapon^=1;Sfx.hit();this.popup(p.x+p.w/2,p.y-16,p.weapon?'CYBER-HAMMER':'KATANA','#ffcc00');}
+      if(inp.kickP)p.kick(this,inp);
+      if(inp.atkP)p.weaponAtk(this);
+    }
     p.update(dt,inp,this);
     if(p.y>BASE_H+60)this.pitFall();
     if(p.pending&&(p.pending.t-=dt)<=0){const pd=p.pending;p.pending=null;this.resolveMelee(pd);}
     if(p.diving)this.diveCheck();
     for(const e of this.enemies){
       e.update(dt,this);
+      if(e.st==='thrown')for(const o of this.enemies){
+        if(o===e||e.hitSet.has(o)||o.st==='thrown'||!overlap(e.box(),o.box()))continue;
+        e.hitSet.add(o);o.damage(10,Math.sign(e.vx)||1,320,1.2);this.sparks(o.x+o.w/2,o.y+o.h/2,'#ffffff',10);this.popup(o.x+o.w/2,o.y-8,'BOWLED OVER!','#ffd319');
+      }
       if(e.contact&&e.hp>0&&e.stun<=0&&p.inv<=0&&overlap(e.box(),p.hurtBox()))this.hurtPlayer(e.dmg,e.x+e.w/2);
     }
     this.enemies=this.enemies.filter(e=>{
@@ -2023,6 +2145,14 @@ class Game{
     for(const e of this.enemies)e.drawSay();
     if(this.boss)this.boss.drawSay();
     if(this.pSay)drawBubble(p.x+p.w/2,p.y-12,this.pSay.txt,'#ff007f',Math.min(1,this.pSay.t*4));
+    if(this.hold){
+      const h=this.hold,x=p.x+p.w/2,y=p.y+p.h+14;
+      ctx.save();ctx.fillStyle='rgba(0,0,0,0.75)';ctx.fillRect(x-46,y,92,9);
+      ctx.fillStyle=h.meter>0.7?'#39ff14':'#ffd319';ctx.fillRect(x-45,y+1,90*Math.min(1,h.meter),7);
+      ctx.strokeStyle='#ffffff';ctx.lineWidth=1;ctx.strokeRect(x-46,y,92,9);
+      if(Math.floor(this.t*6)%2===0){ctx.font=`bold 18px ${FONT}`;ctx.textAlign='center';ctx.lineWidth=3;ctx.strokeStyle='#000';const tx=IS_TOUCH?'MASH KICK / ATK!':'MASH J / L!';ctx.strokeText(tx,x,y+26);ctx.fillStyle='#ffd319';ctx.fillText(tx,x,y+26);}
+      ctx.restore();
+    }
     ctx.restore();
     ctx.drawImage(Tex.vignette(),0,0,BASE_W,BASE_H);
     ctx.drawImage(Tex.scanlines(),0,0,BASE_W,BASE_H);
