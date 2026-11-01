@@ -880,6 +880,7 @@ class Backdrop{
     let gg=this.gradeG[li];
     if(!gg){gg=ctx.createLinearGradient(0,0,0,GROUND_Y);gg.addColorStop(0,'rgba(0,0,0,0.55)');gg.addColorStop(0.2,'rgba(0,0,0,0.12)');gg.addColorStop(0.55,'rgba(0,0,0,0.1)');gg.addColorStop(1,'rgba(0,0,0,0.5)');this.gradeG[li]=gg;}
     ctx.fillStyle=gg;ctx.fillRect(0,0,BASE_W,GROUND_Y+20);
+    Deco.drawMid(camX,li,t,ac,beat);
     // atmosphere in front of the photo: snow / dust / embers
     ctx.save();ctx.globalCompositeOperation='lighter';
     for(const m of this.motes){
@@ -1018,24 +1019,27 @@ class Player{
     }
     if(ctl&&jumpP){
       if(inp.down&&this.onGround&&this.surf&&this.surf.plat){this.dropT=0.25;this.onGround=false;this.y+=2;}
-      else if(this.onGround||this.coyote>0){this.vy=this.jumpV;this.noCut=!inp.kbJump;this.onGround=false;this.coyote=0;this.jumps=1;Sfx.jump();g.dust(this.x+this.w/2,this.y+this.h,6);}
+      else if(this.onGround||this.coyote>0){this.vy=this.jumpV;this.noCut=!inp.kbJump;this.onGround=false;this.coyote=0;this.jumps=1;this.jumpT=0.14;Sfx.jump();g.dust(this.x+this.w/2,this.y+this.h,6);}
       else if(this.perk.doubleJump&&this.jumps<2){this.vy=this.jumpV*0.88;this.noCut=!inp.kbJump;this.jumps=2;this.diving=false;this.atk=null;Sfx.jump();g.ring(this.x+this.w/2,this.y+this.h,this.color,0.6);}
     }
     if(this.vy>=0)this.noCut=false;
     if(!inp.jump&&this.vy<-260&&!this.diving&&this.hurtT<=0&&!this.noCut)this.vy=-260;
     this.vy=Math.min(this.vy+GRAV*dt,this.diving?950:820);
-    const prevB=this.y+this.h,was=this.onGround;
+    const prevB=this.y+this.h,was=this.onGround,vyIn=this.vy;
     this.x+=this.vx*dt;this.y+=this.vy*dt;
     this.x=clamp(this.x,g.minX,g.maxX-this.w);
     landOn(this,prevB,g.world.surfaces(),this.dropT>0);
     if(this.onGround){
       if(!was){
         if(this.diving){this.diving=false;this.atk=null;this.vx*=0.3;g.shock(this.x+this.w/2,this.y+this.h,this.color,0.7);g.shake(0.1);g.dust(this.x+this.w/2,this.y+this.h,10);}
-        else g.dust(this.x+this.w/2,this.y+this.h,4);
+        else g.dust(this.x+this.w/2,this.y+this.h,vyIn>500?8:4);
+        this.landT=0.14;this.landK=clamp(vyIn/700,0.35,1);
       }
       this.jumps=0;this.coyote=0.09;
       if(!this.surf.plat&&this.x>this.surf.x+8&&this.x+this.w<this.surf.x+this.surf.w-8)this.safeX=this.x;
     }
+    if(this.landT>0)this.landT-=dt;if(this.jumpT>0)this.jumpT-=dt;
+    if(this.onGround)this.dist=(this.dist||0)+Math.abs(this.vx)*dt;
     this.trailT-=dt;
     if(this.trailT<=0&&(Math.abs(this.vx)>150||!this.onGround)){
       this.trailT=0.035;
@@ -1045,22 +1049,26 @@ class Player{
   draw(){
     if(this.inv>0&&this.hurtT<=0&&Math.floor(this.inv*16)%2===0)return;
     const d=this.dir,oc=this.color,cx=this.x+this.w/2,cy=this.y,t=this.t;
-    const run=this.onGround&&Math.abs(this.vx)>40,air=!this.onGround,ph=t*15;
+    const run=this.onGround&&Math.abs(this.vx)>40,air=!this.onGround,ph=(this.dist||0)*0.072;
     ctx.save();
     if(this.onGround){ctx.fillStyle='rgba(0,0,0,0.45)';ctx.beginPath();ctx.ellipse(cx,cy+this.h,14,3.5,0,0,TAU);ctx.fill();}
     ctx.translate(cx,cy+this.h);
-    if(run)ctx.rotate(d*0.08);
+    // squash & stretch anchored at the feet: landing squash, take-off stretch, idle breathing, run bob
+    if(this.landT>0){const k=this.landT/0.14*(this.landK||0.5);ctx.scale(1+0.22*k,1-0.2*k);}
+    else if(this.jumpT>0){const k=this.jumpT/0.14;ctx.scale(1-0.1*k,1+0.13*k);}
+    else if(!run&&!air&&!this.atk&&!this.climbing)ctx.scale(1,1+0.016*Math.sin(t*2.6));
+    if(run){ctx.translate(0,-Math.abs(Math.cos(ph))*2.4);ctx.rotate(d*0.1);}
     if(this.diving)ctx.rotate(d*0.35);
     if(this.hurtT>0)ctx.rotate(-d*0.25);
     if(this.atk==='lowkick')ctx.scale(1,0.86);
     if(this.held)ctx.rotate(-d*0.12+Math.sin(t*30)*0.05);
     ctx.translate(-cx,-(cy+this.h));
     const prog=(dur)=>clamp(1-this.atkT/dur,0,1);
-    let fl,bl,fa,ba;
+    let fl,bl,fa,ba,fk=0,bk=0;
     if(this.atk==='kick'){fl=-d*1.55;bl=d*0.2;}
     else if(this.diving){fl=-d*0.85;bl=-d*0.35;}
-    else if(air){fl=-d*0.55;bl=d*0.45;}
-    else if(run){fl=Math.sin(ph)*0.75;bl=-Math.sin(ph)*0.75;}
+    else if(air){fl=-d*0.55;bl=d*0.45;fk=d*(this.vy<0?1.0:0.45);bk=d*0.6;}
+    else if(run){const sn=Math.sin(ph),cs=Math.cos(ph);fl=-d*sn*0.8;bl=d*sn*0.8;fk=d*1.15*Math.max(0,cs);bk=d*1.15*Math.max(0,-cs);}
     else{fl=-d*0.05;bl=d*0.08;}
     const hammerIdle=this.weapon===1;
     if(this.atk==='katana'){const e=Math.min(1,prog(0.24)*1.6);fa=-d*(2.7-2.9*e);ba=d*0.5;}
@@ -1068,12 +1076,12 @@ class Player{
     else if(this.atk==='kick'){fa=d*0.9;ba=-d*0.6;}
     else if(this.diving){fa=d*2.4;ba=d*2.0;}
     else if(air){fa=hammerIdle?-d*1.6:-d*2.3;ba=d*0.8;}
-    else if(run){fa=(hammerIdle?-d*1.1:0)-Math.sin(ph)*(hammerIdle?0.25:0.9);ba=Math.sin(ph)*0.9;}
+    else if(run){fa=(hammerIdle?-d*1.1:0)+d*Math.sin(ph)*(hammerIdle?0.25:0.9);ba=-d*Math.sin(ph)*0.9;}
     else{fa=(hammerIdle?-d*1.1:-d*0.35)+Math.sin(t*2)*0.05;ba=d*0.15;}
-    if(this.held){const w=Math.sin(t*28);fa=-d*(2.3+w*0.5);ba=-d*(2.0-w*0.5);fl=-d*(0.3+w*0.4);bl=d*(0.2+w*0.4);}
+    if(this.held){const w=Math.sin(t*28);fk=d*(0.4+w*0.3);bk=d*0.3;fa=-d*(2.3+w*0.5);ba=-d*(2.0-w*0.5);fl=-d*(0.3+w*0.4);bl=d*(0.2+w*0.4);}
     if(this.atk==='lowkick'){fl=-d*1.4;bl=d*0.5;fa=d*1.2;ba=-d*0.9;}
     if(this.atk==='throw'){const q=clamp(1-this.atkT/0.4,0,1);fa=-d*(2.9-q*2.2);ba=-d*(2.7-q*2);}
-    if(this.climbing&&!this.atk){const c=Math.sin(this.climbPh);fl=-d*(0.7+0.5*c);bl=-d*(0.7-0.5*c);fa=-d*(2.7+0.3*c);ba=-d*(2.7-0.3*c);}
+    if(this.climbing&&!this.atk){const c=Math.sin(this.climbPh);fl=-d*(0.7+0.5*c);bl=-d*(0.7-0.5*c);fa=-d*(2.7+0.3*c);ba=-d*(2.7-0.3*c);fk=d*(0.2+0.9*Math.max(0,c));bk=d*(0.2+0.9*Math.max(0,-c));}
 
     const arm=(ang,back,weapon)=>{
       ctx.save();ctx.translate(cx+(back?-d*6:d*5),cy+16);ctx.rotate(ang);
@@ -1083,13 +1091,17 @@ class Player{
       if(weapon)this._weapon(d);
       ctx.restore();
     };
-    const leg=(ang,back)=>{
+    // two-segment legs: thigh, then the shin + boot hinge at the knee
+    const leg=(ang,back,knee)=>{
       ctx.save();ctx.translate(cx+(back?-d*2:d*2),cy+31);ctx.rotate(ang);
-      ctx.fillStyle=back?'#24082e':'#3a1050';ctx.fillRect(-4.5,0,9,12);
-      ctx.fillStyle='#120818';ctx.fillRect(-5,11,10,9);
-      ctx.globalAlpha=back?0.6:1;ctx.fillStyle=oc;ctx.fillRect(-5.5,6,11,7.5);ctx.fillStyle='rgba(0,0,0,0.28)';ctx.fillRect(-5.5,8,11,0.9);ctx.fillRect(-5.5,10.6,11,0.9);ctx.globalAlpha=1;
-      ctx.fillStyle=oc;ctx.globalAlpha=back?0.5:1;ctx.fillRect(-5,18,11,3);ctx.fillRect(-5,11,10,1.5);ctx.globalAlpha=1;
-      if(!back&&(this.atk==='kick'||this.diving)){ctx.shadowBlur=14;ctx.shadowColor=oc;ctx.fillRect(-5,18,11,3);ctx.shadowBlur=0;}
+      const th=back?'#24082e':'#3a1050';
+      ctx.fillStyle=th;ctx.fillRect(-4.5,0,9,11.5);
+      ctx.translate(0,10.5);ctx.rotate(knee||0);
+      ctx.beginPath();ctx.arc(0,0,4.5,0,TAU);ctx.fill();
+      ctx.fillStyle='#120818';ctx.fillRect(-5,0.5,10,9);
+      ctx.globalAlpha=back?0.6:1;ctx.fillStyle=oc;ctx.fillRect(-5.5,-4.5,11,7.5);ctx.fillStyle='rgba(0,0,0,0.28)';ctx.fillRect(-5.5,-2.5,11,0.9);ctx.fillRect(-5.5,0.1,11,0.9);ctx.globalAlpha=1;
+      ctx.fillStyle=oc;ctx.globalAlpha=back?0.5:1;ctx.fillRect(-5,7.5,11,3);ctx.globalAlpha=1;
+      if(!back&&(this.atk==='kick'||this.diving)){ctx.shadowBlur=14;ctx.shadowColor=oc;ctx.fillRect(-5,7.5,11,3);ctx.shadowBlur=0;}
       ctx.restore();
     };
     // big 80s hair (behind): volume + flowing side ponytail
@@ -1102,7 +1114,7 @@ class Player{
     ctx.fillStyle=HC;ctx.beginPath();ctx.ellipse(hx-d*2,hy+6,10.5,10,0,0,TAU);ctx.fill();
     ctx.fillStyle=oc;ctx.beginPath();ctx.arc(hx-d*7,hy+3,2.6,0,TAU);ctx.fill();
     arm(ba,true,false);
-    leg(bl,true);
+    leg(bl,true,bk);
     // torso
     const tg=ctx.createLinearGradient(cx-11,cy+13,cx+11,cy+33);tg.addColorStop(0,oc);tg.addColorStop(0.55,'#2a0638');tg.addColorStop(1,'#12001c');
     ctx.fillStyle=tg;ctx.beginPath();ctx.roundRect(cx-10,cy+13,20,19,5);ctx.fill();
@@ -1114,7 +1126,7 @@ class Player{
     ctx.fillStyle='#fff';ctx.globalAlpha=0.6+0.4*Math.sin(t*5);ctx.beginPath();ctx.arc(cx+d*4,cy+20,2.2,0,TAU);ctx.fill();ctx.globalAlpha=1;ctx.shadowBlur=0;
     if(this.outfit==='exoArmor'){ctx.fillStyle='#9fb4c8';ctx.fillRect(cx-10,cy+14,20,3);ctx.fillRect(cx-d*9-3,cy+13,6,7);}
     if(this.outfit==='cyberKimono'){ctx.strokeStyle='#ffd6e6';ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(cx-8,cy+14);ctx.lineTo(cx+4*d,cy+26);ctx.stroke();}
-    leg(fl,false);
+    leg(fl,false,fk);
     // face
     const fx=hx+d*2,fy=hy+9;
     const sg=ctx.createLinearGradient(fx-d*7,0,fx+d*7,0);sg.addColorStop(0,'#d9a07c');sg.addColorStop(1,'#f8d2b6');
@@ -1330,6 +1342,7 @@ class Enemy{
       reach:st==='flirt'?0.45:this.reach,talk:this.legT>0?1:this.say?(Math.sin(this.t*24)>0?1:0.3):0,wink:st==='flirt'&&Math.sin(this.t*4)>0.2,brow:st==='flirt'||st==='lunge'?1:0,
       sip:this.sip,flinch:this.hitT>0?1:0,flash:this.hitT>0.08,hasDrink:this.hasDrink,throwA:this.throwA,alpha:this.type==='clone'?0.55:1,
       nod:this.stun>0?Math.sin(this.t*6)*0.2:0};
+    if(this.landT>0)P.squash=-0.2*this.landT/0.16;
     if(st==='climb'){const c=Math.sin(this.climbPh);Object.assign(P,{armF:[2.75+0.3*c,3.05,0],armB:[2.75-0.3*c,3.05],legF:[0.45*c,0.9*Math.max(0,c)],legB:[-0.45*c,0.9*Math.max(0,-c)],mv:0,lean:0});}
     if(st==='dance'&&game){const bi=game.beatInfo();Object.assign(P,dancePose(this.move,bi.ph,bi.n));P.mv=0;}
     drawDude(ctx,this.look,P,cx,fy,this.dir,this.sc);
@@ -1343,6 +1356,15 @@ class Enemy{
   drawSay(){if(this.say)drawBubble(this.x+this.w/2,this.y-14,this.say.txt,LEVELS[this.li].ac,Math.min(1,this.say.t*4));}
 }
 
+{ // landing squash + dust for the guys (wraps update so the physics code stays untouched)
+  const up=Enemy.prototype.update;
+  Enemy.prototype.update=function(dt,g){
+    const was=this.onGround,vy=this.vy,r=up.call(this,dt,g);
+    if(this.onGround&&!was&&vy>260&&this.st!=='thrown'){this.landT=0.16;g.dust(this.x+this.w/2,this.y+this.h,vy>520?7:4);}
+    if(this.landT>0)this.landT-=dt;
+    return r;
+  };
+}
 const BOSS_LINES=["You're not on the list!","Drop the beat, babe!","Found you...","Fly with me, babe!","GAME OVER, BABE!","Too slow, babe!","Party foul!","Hostile takeover!","Which one is real?","Bow to the King of the Night!"];
 // ─── BOSSES ──────────────────────────────────────────────────────────────
 class Boss{
@@ -1735,6 +1757,139 @@ class Pickup{
     ctx.restore();
   }
 }
+// ─── SCENE DEPTH: procedural club dressing + foreground + light grade ─────
+// Mid layer (parallax 0.45): individual props placed by slot + hash (variant, jitter, size, skip),
+// so nothing repeats as a mirrored strip and the same scenery comes back if you walk back.
+// Foreground (parallax 1.6): an occasional dark, blurred prop sweeping past low in the frame. Never hit-tests.
+// None of these shapes look like people, drinks or anything you have to react to.
+function hashI(a,b){let h=(Math.imul(a|0,374761393)+Math.imul(b|0,668265263))|0;h=Math.imul(h^(h>>>13),1274126177);return(h^(h>>>16))>>>0;}
+const Deco={
+  MID:0.45,SLOT:250,FG:1.6,FSLOT:760,
+  midSlot(li,i){
+    const h=hashI(li*977+11,i);if(h%100<20)return null;
+    let v=(h>>>7)%6;const hp=hashI(li*977+11,i-1);if(hp%100>=20&&(hp>>>7)%6===v)v=(v+1)%6;
+    return{v,x:i*this.SLOT+(((h>>>12)%1000)/1000-0.5)*this.SLOT*0.7,s:0.9+((h>>>20)%100)/500,seed:h};
+  },
+  drawMid(camX,li,t,ac,beat){
+    const lx=camX*this.MID,i0=Math.floor((lx-260)/this.SLOT),i1=Math.floor((lx+BASE_W+260)/this.SLOT);
+    ctx.save();
+    const base=LEVELS[li].ac;
+    for(let i=i0;i<=i1;i++){const q=this.midSlot(li,i);if(!q)continue;const x=q.x-lx,y=GROUND_Y+4;
+      const bx=this.BOX[q.v],key=q.v+'|'+(q.v===2?q.seed%5:q.v===1?q.seed%4:0)+'|'+base;
+      const sp=this.sprite(key,bx,2,X=>this.prop(X,q.v,0,0,1,base,0.5,0,q.seed));
+      ctx.drawImage(sp,x+bx[0]*q.s,y+bx[1]*q.s,(bx[2]-bx[0])*q.s,(bx[3]-bx[1])*q.s);
+      this.live(q.v,x,y,q.s,ac,beat,t,q.seed);}
+    ctx.restore();
+    // aerial haze: fuses the props into the room, keeps them calmer than the fighters
+    if(!this.hzG||this.hzK!==ac){this.hzK=ac;this.hzG=ctx.createLinearGradient(0,GROUND_Y-230,0,GROUND_Y+10);this.hzG.addColorStop(0,'rgba(0,0,0,0)');this.hzG.addColorStop(1,'rgba(10,4,20,0.55)');}
+    ctx.fillStyle=this.hzG;ctx.fillRect(0,GROUND_Y-230,BASE_W,240);
+  },
+  BOX:[[-34,-122,34,6],[-80,-222,90,6],[-32,-140,32,6],[-88,-72,88,6],[-26,-218,26,6],[-36,-100,36,6]],
+  cache:{},n:0,
+  sprite(key,bx,k,fn){
+    let c=this.cache[key];if(c)return c;
+    if(++this.n>80){this.cache={};this.n=1;}
+    c=document.createElement('canvas');c.width=Math.ceil((bx[2]-bx[0])*k);c.height=Math.ceil((bx[3]-bx[1])*k);
+    const X=c.getContext('2d');X.scale(k,k);X.translate(-bx[0],-bx[1]);fn(X);
+    return this.cache[key]=c;
+  },
+  // the few moving lights on top of the cached props (additive, no blur = cheap)
+  live(v,x,y,s,ac,beat,t,seed){
+    ctx.save();ctx.translate(x,y);ctx.scale(s,s);ctx.globalCompositeOperation='lighter';
+    if(v===0){ctx.globalAlpha=0.25*beat;ctx.fillStyle=ac;for(let k=0;k<2;k++){ctx.beginPath();ctx.arc(0,-(k+1)*54+26,16,0,TAU);ctx.fill();}}
+    else if(v===2){ctx.globalAlpha=0.12+0.12*Math.max(0,Math.sin(t*9+seed));ctx.fillStyle=DISCO[seed%5];ctx.fillRect(-15,-104,28,30);}
+    else if(v===3){ctx.globalAlpha=0.35*beat;ctx.fillStyle=ac;ctx.fillRect(-72,-31,144,4.5);}
+    else if(v===4){for(let k=0;k<3;k++){ctx.globalAlpha=0.4*(k%2?1-beat:beat);ctx.fillStyle=ac;ctx.fillRect(-17,-161+k*50,34,5);}}
+    else if(v===5){ctx.lineWidth=3.5;ctx.globalAlpha=0.45;const k=Math.floor(t*4)%5;ctx.strokeStyle=DISCO[k];ctx.beginPath();ctx.arc(0,-62,24,Math.PI+k*Math.PI/5,Math.PI+(k+1)*Math.PI/5-0.08);ctx.stroke();}
+    ctx.restore();
+  },
+  // one sprite = one object: each club prop drawn on its own, light from above, accent rim on the lit edge
+  prop(X,v,x,y,s,ac,beat,t,seed){
+    const ctx=X;
+    const B='#130d1e',S='#1d1530',D='#0a0612';
+    ctx.save();ctx.translate(x,y);ctx.scale(s,s);ctx.globalAlpha=0.92;
+    const rim=(f)=>{ctx.save();ctx.strokeStyle=ac;ctx.globalAlpha=0.55;ctx.lineWidth=1.4;ctx.shadowBlur=8;ctx.shadowColor=ac;f();ctx.stroke();ctx.restore();};
+    const glow=(c,a)=>{ctx.fillStyle=c;ctx.globalAlpha=a;ctx.shadowBlur=12;ctx.shadowColor=c;};
+    if(v===0){ // speaker stack: cones pump with the kick drum
+      for(let k=0;k<2;k++){const by=-(k+1)*54;ctx.fillStyle=k?S:B;ctx.fillRect(-26,by,52,52);ctx.fillStyle=D;ctx.fillRect(-26,by+48,52,4);
+        const r=13+beat*2.2*(k?0.6:1);ctx.fillStyle='#07040c';ctx.beginPath();ctx.arc(0,by+26,r+3,0,TAU);ctx.fill();
+        ctx.fillStyle='#241c36';ctx.beginPath();ctx.arc(0,by+26,r,0,TAU);ctx.fill();ctx.fillStyle='#3a3050';ctx.beginPath();ctx.arc(0,by+26,r*0.32,0,TAU);ctx.fill();}
+      rim(()=>{ctx.beginPath();ctx.moveTo(-26,0);ctx.lineTo(-26,-108);ctx.lineTo(26,-108);});
+      glow(ac,0.5+0.5*beat);ctx.fillRect(-20,-102,6,2);ctx.shadowBlur=0;
+    }else if(v===1){ // Miami palm in a pot
+      const sw=Math.sin(t*0.8+seed%7)*0.05;
+      ctx.fillStyle=S;ctx.beginPath();ctx.moveTo(-17,0);ctx.lineTo(-13,-28);ctx.lineTo(13,-28);ctx.lineTo(17,0);ctx.closePath();ctx.fill();
+      ctx.strokeStyle=B;ctx.lineWidth=7;ctx.lineCap='round';ctx.beginPath();ctx.moveTo(0,-28);ctx.quadraticCurveTo(-8,-90,6+sw*60,-150);ctx.stroke();
+      ctx.strokeStyle='rgba(255,255,255,0.06)';ctx.lineWidth=2;for(let k=0;k<7;k++){const yy=-36-k*16;ctx.beginPath();ctx.moveTo(-4,yy);ctx.lineTo(4,yy-2);ctx.stroke();}
+      ctx.save();ctx.translate(6+sw*60,-150);ctx.rotate(sw);
+      for(let k=0;k<7;k++){const a=-Math.PI+k*Math.PI/6+0.1,L=48+((seed>>>k)%12);ctx.fillStyle=k%2?B:S;
+        ctx.beginPath();ctx.moveTo(0,0);ctx.quadraticCurveTo(Math.cos(a)*L*0.6,Math.sin(a)*L*0.6-14,Math.cos(a)*L,Math.sin(a)*L+12);
+        ctx.quadraticCurveTo(Math.cos(a)*L*0.5,Math.sin(a)*L*0.5-2,0,4);ctx.fill();}
+      ctx.restore();
+      rim(()=>{ctx.beginPath();ctx.moveTo(-13,-28);ctx.lineTo(13,-28);});
+    }else if(v===2){ // arcade cabinet, screen flickers in its own colour
+      const sc=DISCO[seed%5];
+      ctx.fillStyle=B;ctx.beginPath();ctx.moveTo(-22,0);ctx.lineTo(-22,-118);ctx.lineTo(-14,-126);ctx.lineTo(22,-126);ctx.lineTo(22,-60);ctx.lineTo(16,-52);ctx.lineTo(22,-44);ctx.lineTo(22,0);ctx.closePath();ctx.fill();
+      ctx.fillStyle=S;ctx.fillRect(-22,-50,44,8);
+      glow(ac,0.75);ctx.fillRect(-16,-122,34,9);
+      glow(sc,0.35+0.15*Math.sin(t*9+seed)+0.1*beat);ctx.fillRect(-15,-104,28,30);
+      ctx.shadowBlur=0;ctx.globalAlpha=0.92;ctx.fillStyle='#ff2a6d';ctx.beginPath();ctx.arc(-8,-47,2.4,0,TAU);ctx.fill();ctx.fillStyle='#05d9e8';ctx.beginPath();ctx.arc(6,-47,2.4,0,TAU);ctx.fill();
+      rim(()=>{ctx.beginPath();ctx.moveTo(-22,0);ctx.lineTo(-22,-118);ctx.lineTo(-14,-126);ctx.lineTo(22,-126);});
+    }else if(v===3){ // bar counter with neon tube front + stools (no glasses: drinks are pickups)
+      ctx.fillStyle=S;ctx.fillRect(-80,-58,160,10);ctx.fillStyle=B;ctx.fillRect(-74,-48,148,48);
+      glow(ac,0.55+0.3*beat);ctx.fillRect(-70,-30,140,2.5);glow('#ffffff',0.25);ctx.fillRect(-70,-16,140,1.5);ctx.shadowBlur=0;ctx.globalAlpha=0.92;
+      for(const sx of[-54,-10,34]){ctx.fillStyle=D;ctx.fillRect(sx+8,-34,3,34);ctx.fillStyle=S;ctx.beginPath();ctx.ellipse(sx+9.5,-36,11,4,0,0,TAU);ctx.fill();}
+      rim(()=>{ctx.beginPath();ctx.moveTo(-80,-58);ctx.lineTo(80,-58);});
+    }else if(v===4){ // neon column, rings pulse on the beat
+      ctx.fillStyle=B;ctx.fillRect(-14,-200,28,200);ctx.fillStyle=S;ctx.fillRect(-14,-200,9,200);ctx.fillStyle=D;ctx.fillRect(-19,-206,38,8);ctx.fillRect(-19,-8,38,8);
+      for(let k=0;k<3;k++){glow(k===1?'#ffffff':ac,0.35+0.5*(k%2?1-beat:beat));ctx.fillRect(-15,-160+k*50,30,3);}
+      ctx.shadowBlur=0;
+    }else{ // jukebox with a running rainbow arch
+      ctx.fillStyle=B;ctx.beginPath();ctx.moveTo(-28,0);ctx.lineTo(-28,-62);ctx.arc(0,-62,28,Math.PI,0);ctx.lineTo(28,0);ctx.closePath();ctx.fill();
+      ctx.fillStyle=S;ctx.fillRect(-18,-58,36,30);
+      ctx.lineWidth=3.5;for(let k=0;k<5;k++){ctx.strokeStyle=DISCO[(k+Math.floor(t*4))%5];ctx.globalAlpha=0.55;ctx.shadowBlur=8;ctx.shadowColor=ctx.strokeStyle;
+        ctx.beginPath();ctx.arc(0,-62,24,Math.PI+k*Math.PI/5,Math.PI+(k+1)*Math.PI/5-0.08);ctx.stroke();}
+      ctx.shadowBlur=0;ctx.globalAlpha=0.92;ctx.fillStyle=D;for(let k=0;k<4;k++)ctx.fillRect(-14,-20+k*4,28,2);
+    }
+    ctx.restore();
+  },
+  // foreground whip layer, rendered small then scaled up = cheap depth-of-field blur on every browser
+  drawFg(camX,li,ac){
+    const lx=camX*this.FG,i0=Math.floor((lx-300)/this.FSLOT),i1=Math.floor((lx+BASE_W+300)/this.FSLOT),list=[];
+    for(let i=i0;i<=i1;i++){const h=hashI(li*131+7,i);if(h%100<45)continue;const x=i*this.FSLOT+((h>>>9)%300)-lx;if(x<-260||x>BASE_W+260)continue;list.push({x,v:(h>>>17)%3,h});}
+    const base=LEVELS[li].ac;
+    ctx.save();ctx.globalAlpha=0.9;ctx.imageSmoothingEnabled=true;
+    for(const q of list){
+      const bx=this.FBOX[q.v],seed=q.v===2?q.h%4:0,key='fg'+q.v+'|'+seed+'|'+base;
+      const sp=this.sprite(key,bx,1/3,X=>this.fgProp(X,q.v,seed*977+5,base));
+      ctx.drawImage(sp,q.x+bx[0],BASE_H+bx[1],bx[2]-bx[0],bx[3]-bx[1]);
+    }
+    ctx.restore();
+  },
+  FBOX:[[-50,-122,50,6],[-108,-140,108,6],[-120,-168,120,6]],
+  fgProp(X,v,h,ac){
+    X.fillStyle='#050208';X.strokeStyle=ac;X.lineWidth=3;
+    if(v===0){ // big bar stool, seat top just reaching the floor line
+      X.fillRect(-5,-96,10,96);X.fillRect(-30,-6,60,6);X.beginPath();X.ellipse(0,-100,40,12,0,0,TAU);X.fill();
+      X.globalAlpha=0.5;X.beginPath();X.ellipse(0,-102,40,12,0,Math.PI*1.05,Math.PI*1.95);X.stroke();
+    }else if(v===1){ // velvet rope stanchions
+      for(const s of[-90,90]){X.fillRect(s-5,-118,10,118);X.beginPath();X.arc(s,-122,9,0,TAU);X.fill();}
+      X.strokeStyle='#5a0a2a';X.lineWidth=9;X.beginPath();X.moveTo(-86,-110);X.quadraticCurveTo(0,-60,86,-110);X.stroke();
+      X.strokeStyle=ac;X.globalAlpha=0.5;X.lineWidth=3;X.beginPath();X.arc(-90,-122,9,Math.PI,Math.PI*1.6);X.stroke();X.beginPath();X.arc(90,-122,9,Math.PI,Math.PI*1.6);X.stroke();
+    }else{ // fern leaves rising from the bottom edge
+      for(let j=0;j<6;j++){const a=-1.25+j*0.5+((h>>>j)%10)/40,L=110+((h>>>(j+3))%40);
+        X.save();X.rotate(a*0.6);X.beginPath();X.moveTo(-6,0);X.quadraticCurveTo(-26,-L*0.6,0,-L);X.quadraticCurveTo(24,-L*0.6,6,0);X.closePath();X.fill();X.restore();}
+    }
+  },
+  // light grade: soft club-light wash from above + a vignette centred on the action
+  // club light from above, drawn only over the upper part of the room (the existing vignette frames the edges)
+  grade(fx,fy,ac,li){
+    const base=LEVELS[li].ac,H=300;
+    const w=this.sprite('wash|'+base,[0,0,BASE_W,H],0.25,X=>{const g=X.createRadialGradient(BASE_W*0.5,-60,20,BASE_W*0.5,-60,420);
+      g.addColorStop(0,'#ffd6a0');g.addColorStop(0.45,base);g.addColorStop(1,'rgba(0,0,0,0)');X.fillStyle=g;X.fillRect(0,0,BASE_W,H);});
+    ctx.save();ctx.globalCompositeOperation='lighter';ctx.globalAlpha=0.09;ctx.drawImage(w,0,0,BASE_W,H);ctx.restore();
+  },
+};
 
 // ─── ON-SCREEN CONTROLS (touch + mouse): side wings in landscape/PC, deck below in portrait ─
 // Each finger is "owned" by the control it first touched, so sliding off the arrow pad keeps steering.
@@ -2414,6 +2569,8 @@ class Game{
     for(const v of this.vfx)if(v instanceof Particle)v.draw();
     ctx.restore();ctx.globalAlpha=1;
     for(const v of this.vfx)if(!(v instanceof Particle))v.draw();
+    {ctx.save();ctx.translate(Math.round(this.camX*RES)/RES,0);Deco.drawFg(this.camX,this.li,ac);
+      const pl=this.player;Deco.grade(pl.x+pl.w/2-this.camX,pl.y+pl.h*0.5,ac,this.li);ctx.restore();}
     const p=this.player,aura=[[p.x+p.w/2,p.y+p.h/2,85,p.color,0.34]];
     if(this.boss)aura.push([this.boss.cx,this.boss.cy,this.boss.w*1.4,this.boss.color,0.25]);
     this.lights.draw(aura);
