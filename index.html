@@ -398,6 +398,9 @@ const Sfx=(()=>{
     beatPhase(){if(cur&&musicOn&&!cur.el.paused){const b=cur.el.currentTime*cur.bpm/60;return b-Math.floor(b);}if(!ac||!timer||!musicOn)return null;const b=(ac.currentTime-songStart)/(stepDur*4);return b<0?0:b-Math.floor(b);},
     beatN(){if(cur&&musicOn&&!cur.el.paused)return Math.floor(cur.el.currentTime*cur.bpm/60);if(!ac||!timer||!musicOn)return null;return Math.max(0,Math.floor((ac.currentTime-songStart)/(stepDur*4)));},
     duck(d){if(!ac||!musicG)return;const t=ac.currentTime,g=musicG.gain;g.cancelScheduledValues(t);g.setTargetAtTime(MUSIC_VOL*0.4,t,0.05);g.setTargetAtTime(MUSIC_VOL,t+d,0.3);},
+    // while someone is talking: music way down, effects a bit down, so every word is heard
+    talk(on){if(!ac||!musicG)return;const t=ac.currentTime,g=musicG.gain,m=master.gain;g.cancelScheduledValues(t);m.cancelScheduledValues(t);
+      if(on){g.setTargetAtTime(MUSIC_VOL*0.22,t,0.04);m.setTargetAtTime(0.5,t,0.05);}else{g.setTargetAtTime(MUSIC_VOL,t+0.15,0.35);m.setTargetAtTime(0.8,t+0.1,0.25);}},
     get musicOn(){return musicOn;},
     get songName(){return cur?cur.name:song?song.name:'';},
     get _track(){return cur;},
@@ -673,6 +676,33 @@ const BOSS_DEFEAT=["Okay... you're on the list.","My records... scratched...","I
 // Fly Girl a female one. Voice names differ per OS, so known iOS/macOS/Android/Windows names are matched.
 const Voice=(()=>{
   const S=window.speechSynthesis;let on=true,voices=[],male=[],female=[],neutral=[],maleReal=false,ready=false,lastTry=0,tries=0,busyUntil=0,timer=0;
+  let cur=null,pend=null,chanUntil=0,guard=0;
+  const estimate=(txt,rate)=>0.5+txt.length*0.068/(rate||1);
+  function finish(job){
+    if(cur!==job)return;cur=null;clearTimeout(guard);chanUntil=performance.now()+140;Sfx.talk(false);
+    setTimeout(()=>{if(cur)return;const p=pend;pend=null;if(p&&performance.now()-p.at<2500&&(!p.o.alive||p.o.alive()))start(p);},150);
+  }
+  function start(job){
+    const {txt,who,o}=job;cur=job;
+    const rate=o.rate||(who==='girl'?1.08:0.98),dur=estimate(txt,rate);
+    if(o.onStart)try{o.onStart(dur+0.35);}catch(e){}
+    Sfx.talk(true);
+    // safety net: browsers sometimes never fire onend (iOS) - free the channel anyway
+    guard=setTimeout(()=>finish(job),(dur*1.7+1.2)*1000);
+    if(!S||!on){clearTimeout(guard);guard=setTimeout(()=>finish(job),dur*1000);return;}
+    if(!voices.length)load();
+    try{
+      if(S.paused)S.resume();
+      const u=new SpeechSynthesisUtterance(txt.replace(/[♥.]{2,}|♥/g,' '));
+      const p=o.pitch==null?0.8:o.pitch;
+      if(who==='girl'){const pool=female.length?female:voices;if(pool.length)u.voice=pool[(o.seed||0)%pool.length];u.pitch=female.length?1.22:1.6;}
+      else{const pool=maleReal?male:(neutral.length?neutral:voices);if(pool.length)u.voice=pool[(o.seed||0)%pool.length];u.pitch=maleReal?clamp(p,0.5,1.05):clamp(p*0.55+0.1,0.5,0.7);}
+      u.rate=rate;u.lang=u.voice?u.voice.lang:'en-US';u.volume=1;
+      u.onstart=()=>{ready=true;};u.onend=u.onerror=()=>finish(job);
+      keep.push(u);if(keep.length>8)keep.shift();
+      if(S.speaking||S.pending){S.cancel();setTimeout(()=>{try{S.speak(u);}catch(e){}},60);}else S.speak(u);
+    }catch(e){}
+  }
   const keep=[]; // Safari/Chrome drop utterances that get garbage-collected mid-sentence, so hold references
   const NOVELTY=/bad news|bells|boing|bubbles|cellos|whisper|zarvox|trinoids|wobble|jester|organ|superstar|good news|deranged|hysterical|bahh|albert/i;
   const FEMALE=/female|samantha|victoria|karen|zira|susan|moira|tessa|fiona|allison|\bava\b|serena|kate|joanna|salli|kimberly|hazel|aria|jenny|sonia|libby|catherine|kathy|martha|nicky|shelley|\bflo\b|sandy|grandma|veena|\bivy\b|emma|\bamy\b|olivia|natasha|clara|michelle|heather|linda|helena|google us english|google uk english female|x-sfg|x-tpc|x-iob|x-iog|x-gba|x-gbc|x-gbg|x-afa|x-afc|x-ena/i;
@@ -695,32 +725,20 @@ const Voice=(()=>{
       try{if(S.paused)S.resume();const u=new SpeechSynthesisUtterance('hey');u.volume=0.05;u.rate=1.6;u.lang='en-US';
         u.onstart=()=>{ready=true;};keep.push(u);if(keep.length>8)keep.shift();S.speak(u);}catch(e){}
     },
+    // ONE dialogue channel: a line is always finished before the next starts (no cut-offs, no overlaps).
+    // Busy → an important line (force) waits in a single slot for up to 2.5 s; small talk is dropped.
+    // o.onStart(dur) runs when the line actually starts, so the speech bubble appears exactly with the voice.
+    // Returns true if the line will be heard/shown.
     say(txt,who,o={}){
-      if(!S||!on)return;
-      if(!voices.length)load();
-      const now=performance.now();
-      if(S.paused)try{S.resume();}catch(e){}
-      const busy=S.speaking||S.pending;
-      if(busy&&now<busyUntil&&!o.force)return;
-      try{
-        const u=new SpeechSynthesisUtterance(txt.replace(/[♥.]{2,}|♥/g,' '));
-        const p=o.pitch==null?0.8:o.pitch;
-        if(who==='girl'){const pool=female.length?female:voices;if(pool.length)u.voice=pool[(o.seed||0)%pool.length];u.pitch=female.length?1.25:1.6;u.rate=o.rate||1.1;}
-        else{
-          const pool=maleReal?male:(neutral.length?neutral:voices);if(pool.length)u.voice=pool[(o.seed||0)%pool.length];
-          u.pitch=maleReal?clamp(p,0.5,1.05):clamp(p*0.55+0.1,0.5,0.7);u.rate=o.rate||0.95;
-        }
-        u.lang=u.voice?u.voice.lang:'en-US';u.volume=1;
-        busyUntil=now+400+txt.length*75/(u.rate||1);
-        u.onstart=()=>{ready=true;};u.onend=u.onerror=()=>{busyUntil=0;};
-        keep.push(u);if(keep.length>8)keep.shift();
-        clearTimeout(timer);
-        // WebKit (all iPhone browsers) silently drops a speak() issued in the same tick as cancel(): wait a moment.
-        if(busy){S.cancel();timer=setTimeout(()=>{try{S.speak(u);}catch(e){}},60);}else S.speak(u);
-        Sfx.duck((busyUntil-now)/1000);
-      }catch(e){}
+      if(!txt)return false;
+      const now=performance.now(),job={txt,who,o,at:now,prio:o.force?2:1};
+      if(now>=chanUntil&&!cur){start(job);return true;}
+      if(!o.force)return false;
+      if(!pend||pend.prio<=job.prio){pend=job;}
+      return true;
     },
-    stop(){if(S)S.cancel();},
+    get busy(){return !!cur||performance.now()<chanUntil;},
+    stop(){pend=null;const c=cur;cur=null;clearTimeout(guard);chanUntil=0;Sfx.talk(false);if(S)S.cancel();},
     toggle(){on=!on;if(!on&&S)S.cancel();return on;},
     get on(){return on;},get ok(){return !!S;},get ready(){return ready;},
   };
@@ -1676,8 +1694,9 @@ class Enemy{
   get liq(){return LIQ[this.look.drink]||'#ffffff';}
   box(){return{x:this.x+2,y:this.y+6,w:this.w-4,h:this.h-6};}
   speak(lines,dur=1.3,force){
-    const txt=Array.isArray(lines)?pick(Math.random,lines):lines;this.say={txt,t:dur};
-    if(game&&Math.abs(this.x+this.w/2-(game.camX+BASE_W/2))<BASE_W/2+20)Voice.say(txt,'guy',{pitch:this.vp,rate:this.vr,seed:this.vs,force});
+    const txt=Array.isArray(lines)?pick(Math.random,lines):lines;
+    if(!game||Math.abs(this.x+this.w/2-(game.camX+BASE_W/2))>BASE_W/2+20)return false;
+    return Voice.say(txt,'guy',{pitch:this.vp,rate:this.vr,seed:this.vs,force,alive:()=>this.hp>0&&game.enemies.includes(this),onStart:d=>{this.say={txt,t:Math.max(dur,d)};}});
   }
   damage(d,dir,kb,stun){
     this.hp-=d;this.hitT=0.16;this.kb=dir*(kb||150);this.dir=-dir;
@@ -1880,7 +1899,7 @@ class Boss{
     this.st='enter';this.stT=0;this.cd=1.4;this.cd2=3;this.phase=1;this.alpha=1;this.contact=true;this.shield=0;
     this.fly=this.beh==='laser';this.hoverY=104;this.splitN=0;this.onGround=false;this.surf=null;this.mode=0;this.landed=true;this.ghostT=0;
   }
-  talk(txt,force=true){this.say={txt,t:2.2};Voice.say(txt,'guy',{pitch:0.35+this.li*0.04,rate:0.9,seed:this.li,force});}
+  talk(txt,force=true){return Voice.say(txt,'guy',{pitch:0.35+this.li*0.04,rate:0.9,seed:this.li,force,alive:()=>this.hp>0,onStart:d=>{this.say={txt,t:Math.max(2,d)};}});}
   get cx(){return this.x+this.w/2;}
   get cy(){return this.y+this.h/2;}
   box(){return{x:this.x+6,y:this.y+6,w:this.w-12,h:this.h-8};}
@@ -2473,7 +2492,7 @@ class Remains{
     const a=Math.max(0,Math.min(1,(this.life-this.t)/0.6));
     if(this.splat){const s=this.splat,k=Math.min(1,(this.t-(this.t0||0))*6);ctx.save();ctx.globalAlpha=a*0.75;ctx.fillStyle='#5a0012';ctx.beginPath();ctx.ellipse(s.x,s.y,s.r*k,s.r*0.22*k,0,0,TAU);ctx.fill();ctx.restore();}
     for(const q of this.p)q.draw(a);
-    if(this.say&&this.t<1.4&&this.p[0])drawBubble(this.p[0].x,this.p[0].y-26,this.say,'#ffd319',Math.min(1,(1.4-this.t)*4));
+    if(this.say&&this.t<this.sayEnd&&this.p[0])drawBubble(this.p[0].x,this.p[0].y-26,this.say,'#ffd319',Math.min(1,(this.sayEnd-this.t)*4));
   }
 }
 // hammered straight down into the floor: only the top half sticks out, arms flailing, then he sinks away
@@ -2543,7 +2562,7 @@ const Finish={
     g.vfx.push(new Slash(fx,cyW,dir,'#ffffff'));g.lights.add(fx,cyW,120,'#00f3ff',0.3,1);
     g.popup(fx,fy-S.oy-6,kind==='head'?'HEADS UP!':kind==='legs'?'LEGLESS!':'SLICED!','#00f3ff');
     Sfx.swing();Sfx.crack();g.hitStop=Math.max(g.hitStop||0,0.09);g.shake(0.2);
-    const line=g.corpses[g.corpses.length-1].say;if(kind!=='head')Voice.say(line||'AAAAH!','guy',{pitch:e.vp,rate:1.1,seed:e.vs,force:true});
+    const rm=g.corpses[g.corpses.length-1],line=rm.say||'AAAAH!';rm.say=null;if(kind!=='head')Voice.say(line,'guy',{pitch:e.vp,rate:1.1,seed:e.vs,force:true,onStart:d=>{rm.say=line;rm.sayEnd=rm.t+Math.max(1.2,d);}});
   },
   // a rocket at point blank: blown apart into burning pieces
   gib(g,e,floor,dir){
@@ -3317,7 +3336,7 @@ class Game{
   fireAt(x,y,tx,ty,sp,c,dmg){const a=Math.atan2(ty-y,tx-x);this.projs.push(new Proj('shot',x,y,Math.cos(a)*sp,Math.sin(a)*sp,c,dmg));}
   glitch(b){for(let i=0;i<14;i++)this.vfx.push(new Particle(b.x+Math.random()*b.w,b.y+Math.random()*b.h,rnd(-200,200),rnd(-40,40),i%2?b.color:'#ffffff',0.3,rnd(2,6),0));}
   hearts(e){for(let i=0;i<3;i++)this.vfx.push(new Popup(e.x+e.w/2+rnd(-12,12),e.y-22-i*7,'♥','#ff4f9a'));}
-  playerSay(lines,force){if(this.pSay&&!force)return;const txt=pick(Math.random,lines);this.pSay={txt,t:1.5};Voice.say(txt,'girl',{force});}
+  playerSay(lines,force){const txt=pick(Math.random,lines);return Voice.say(txt,'girl',{force,onStart:d=>{this.pSay={txt,t:Math.max(1.4,d)};}});}
   later(t,fn){this.timers.push({t,fn});}
   throwDrink(e){
     const p=this.player,G=900,sx=e.x+e.w/2+e.dir*8,sy=e.y+e.h*0.25,tt=clamp(Math.abs(p.x-e.x)/420,0.55,1.05);
@@ -3337,8 +3356,8 @@ class Game{
     return true;
   }
   scream(){
-    Sfx.scream();const txt=pick(Math.random,LINES_SCREAM);this.pSay={txt,t:1.3};
-    this.later(0.8,()=>{if(this.hold)Voice.say(txt,'girl',{force:true});});
+    Sfx.scream();const txt=pick(Math.random,LINES_SCREAM);
+    this.later(0.75,()=>{if(this.hold)Voice.say(txt,'girl',{force:true,alive:()=>!!this.hold,onStart:d=>{this.pSay={txt,t:Math.max(1.2,d)};}});});
   }
   updateHold(dt,inp){
     const h=this.hold,e=h.e,p=this.player;
@@ -3559,8 +3578,8 @@ class Game{
     if(fin){e.lastWords=null;}
     else{
       if(e.type==='mini'||e.type==='clone'||Math.random()<0.25)e.lastWords=null;
-      else Voice.say(e.lastWords,'guy',{pitch:e.vp,rate:e.vr*0.85,seed:e.vs});
-      this.corpses.push(new FallenDude(e,floorY));
+      const fd=new FallenDude(e,floorY);fd.say=null;this.corpses.push(fd);
+      if(e.lastWords){const w=e.lastWords;Voice.say(w,'guy',{pitch:e.vp,rate:e.vr*0.85,seed:e.vs,onStart:d=>{fd.say={txt:w,t:fd.t+Math.max(1.4,d)};}});}
     }
     if(e.hasDrink&&e.look.drink!=='none'){this.sparks(ex,e.y+e.h*0.6,'#e8f6ff',8,180);this.sparks(ex,e.y+e.h*0.6,e.liq,8,140);Sfx.glass();}
     this.sparks(ex,ey,'#ffd319',8,220);this.lights.add(ex,ey,110,LEVELS[this.li].ac,0.4,0.8);Sfx.pop();
